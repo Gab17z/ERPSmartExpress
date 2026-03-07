@@ -77,7 +77,6 @@ export default function Produtos() {
   const [uploading, setUploading] = useState(false);
   const [ordenacao, setOrdenacao] = useState({ campo: null, direcao: 'asc' });
   const [tipoFiltro, setTipoFiltro] = useState("todos");
-  const [user, setUser] = useState(null);
   const [configuracoes, setConfiguracoes] = useState(null);
   const [capturandoFoto, setCapturandoFoto] = useState(false);
   const [streamAtivo, setStreamAtivo] = useState(null);
@@ -114,15 +113,6 @@ export default function Produtos() {
   const queryClient = useQueryClient();
 
   React.useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const currentUser = await base44.auth.me();
-        setUser(currentUser);
-      } catch (error) {
-        console.error("Erro ao carregar usuário:", error);
-      }
-    };
-
     const configSalva = localStorage.getItem('configuracoes_erp');
     if (configSalva) {
       try {
@@ -131,8 +121,6 @@ export default function Produtos() {
         console.error("Erro ao carregar configurações:", error);
       }
     }
-
-    loadUser();
   }, []);
 
   const { data: produtos = [], isLoading } = useQuery({
