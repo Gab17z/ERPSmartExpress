@@ -55,6 +55,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const isAdmin = user?.cargo?.nome?.toLowerCase() === 'administrador' ||
                   user?.permissoes?.administrador_sistema === true;
+  const podVerCustos = user?.permissoes?.visualizar_custos === true || isAdmin;
 
   const { data: vendas = [], isLoading: loadingVendas } = useQuery({
     queryKey: ['vendas'],
@@ -145,8 +146,19 @@ export default function Dashboard() {
     p.ativo !== false && (p.estoque_atual || 0) <= (p.estoque_minimo || 0) && (p.estoque_minimo || 0) > 0
   );
 
-  const osAbertas = ordensServico.filter(os => 
-    !['entregue', 'cancelado'].includes(os.status)
+  const osAbertas = ordensServico.filter(os =>
+    !['entregue', 'faturada', 'cancelado'].includes(os.status)
+  );
+
+  // Mini-dashboard do vendedor: dados pessoais
+  const meuId = user?.id;
+  const minhasVendasPeriodo = vendasPeriodo.filter(v => v.vendedor_id === meuId);
+  const minhasFaturamentoPeriodo = minhasVendasPeriodo.reduce((sum, v) => sum + (v.valor_total || 0), 0);
+  const minhasComissoes = comissoes.filter(c => c.vendedor_id === meuId);
+  const comissaoPendente = minhasComissoes.filter(c => c.status === 'pendente').reduce((sum, c) => sum + (parseFloat(c.valor_comissao) || 0), 0);
+  const comissaoPaga = minhasComissoes.filter(c => c.status === 'pago').reduce((sum, c) => sum + (parseFloat(c.valor_comissao) || 0), 0);
+  const minhasOsAbertas = ordensServico.filter(os =>
+    os.tecnico_responsavel === user?.nome && !['entregue', 'faturada', 'cancelado'].includes(os.status)
   );
 
   // Vendas por vendedor - memoizado para performance
@@ -268,107 +280,219 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-none shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-blue-100">
-                Faturamento {getNomePeriodo()}
-              </CardTitle>
-              <DollarSign className="w-5 h-5 text-blue-100" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              R$ {faturamentoPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </div>
-            <p className="text-xs text-blue-100 mt-2">
-              {vendasPeriodo.length} vendas • Margem: {margemLucro.toFixed(1)}%
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-lg bg-gradient-to-br from-green-500 to-green-600 text-white">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-green-100">
-                Lucro {getNomePeriodo()}
-              </CardTitle>
-              <TrendingUp className="w-5 h-5 text-green-100" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              R$ {lucroPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </div>
-            <p className="text-xs text-green-100 mt-2">
-              Ticket médio: R$ {ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-lg bg-gradient-to-br from-orange-500 to-orange-600 text-white">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-orange-100">
-                OS Abertas
-              </CardTitle>
-              <Wrench className="w-5 h-5 text-orange-100" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{osAbertas.length}</div>
-            <p className="text-xs text-orange-100 mt-2">
-              {ordensServico.length} ordens no total
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-lg bg-gradient-to-br from-purple-500 to-purple-600 text-white">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-purple-100">
-                Estoque Baixo
-              </CardTitle>
-              <Package className="w-5 h-5 text-purple-100" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{produtosBaixoEstoque.length}</div>
-            <p className="text-xs text-purple-100 mt-2">
-              {produtos.length} produtos cadastrados
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Alertas */}
-      {produtosBaixoEstoque.length > 0 && (
-        <Card className="border-l-4 border-l-red-500 bg-red-50">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
-              <div className="flex-1">
-                <h3 className="font-semibold text-red-900">
-                  Produtos com Estoque Baixo
-                </h3>
-                <p className="text-sm text-red-700 mt-1">
-                  {produtosBaixoEstoque.length} produto(s) estão abaixo do estoque mínimo
+      {/* Mini-Dashboard do Vendedor */}
+      {!podVerCustos && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card className="border-none shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-blue-100">
+                    Minhas Vendas {getNomePeriodo()}
+                  </CardTitle>
+                  <ShoppingCart className="w-5 h-5 text-blue-100" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{minhasVendasPeriodo.length}</div>
+                <p className="text-xs text-blue-100 mt-2">
+                  R$ {minhasFaturamentoPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em vendas
                 </p>
-                <Link to={createPageUrl("Produtos")}>
-                  <Button variant="link" className="text-red-600 px-0 mt-2">
-                    Ver Produtos <ArrowUpRight className="w-4 h-4 ml-1" />
-                  </Button>
-                </Link>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-lg bg-gradient-to-br from-green-500 to-green-600 text-white">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-green-100">
+                    Comissão Pendente
+                  </CardTitle>
+                  <DollarSign className="w-5 h-5 text-green-100" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  R$ {comissaoPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </div>
+                <p className="text-xs text-green-100 mt-2">
+                  R$ {comissaoPaga.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} já recebido
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-lg bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-orange-100">
+                    Minhas OS Abertas
+                  </CardTitle>
+                  <Wrench className="w-5 h-5 text-orange-100" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{minhasOsAbertas.length}</div>
+                <p className="text-xs text-orange-100 mt-2">
+                  atribuídas a mim
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-lg bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-purple-100">
+                    Total Comissões
+                  </CardTitle>
+                  <TrendingUp className="w-5 h-5 text-purple-100" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{minhasComissoes.length}</div>
+                <p className="text-xs text-purple-100 mt-2">
+                  {minhasComissoes.filter(c => c.status === 'pendente').length} pendentes
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Últimas vendas do vendedor */}
+          <Card className="border-none shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-lg">Minhas Últimas Vendas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {minhasVendasPeriodo.length === 0 && (
+                  <p className="text-sm text-slate-500 text-center py-4">Nenhuma venda no período</p>
+                )}
+                {minhasVendasPeriodo.slice(0, 10).map((venda, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                    <div>
+                      <p className="font-medium text-sm">{venda.codigo_venda}</p>
+                      <p className="text-xs text-slate-500">{venda.cliente_nome || 'Cliente não identificado'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-sm text-green-600">
+                        R$ {(venda.valor_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-xs text-slate-400">
+                        {venda.created_date ? format(new Date(venda.created_date), "dd/MM HH:mm") : ''}
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </>
       )}
 
-      {/* Gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Dashboard Completo (Admin/Gerente) */}
+      {podVerCustos && (
+        <>
+          {/* KPIs */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card className="border-none shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-blue-100">
+                    Faturamento {getNomePeriodo()}
+                  </CardTitle>
+                  <DollarSign className="w-5 h-5 text-blue-100" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  R$ {faturamentoPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </div>
+                <p className="text-xs text-blue-100 mt-2">
+                  {vendasPeriodo.length} vendas • Margem: {margemLucro.toFixed(1)}%
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-lg bg-gradient-to-br from-green-500 to-green-600 text-white">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-green-100">
+                    Lucro {getNomePeriodo()}
+                  </CardTitle>
+                  <TrendingUp className="w-5 h-5 text-green-100" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">
+                  R$ {lucroPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </div>
+                <p className="text-xs text-green-100 mt-2">
+                  Ticket médio: R$ {ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-lg bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-orange-100">
+                    OS Abertas
+                  </CardTitle>
+                  <Wrench className="w-5 h-5 text-orange-100" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{osAbertas.length}</div>
+                <p className="text-xs text-orange-100 mt-2">
+                  {ordensServico.length} ordens no total
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-lg bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium text-purple-100">
+                    Estoque Baixo
+                  </CardTitle>
+                  <Package className="w-5 h-5 text-purple-100" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{produtosBaixoEstoque.length}</div>
+                <p className="text-xs text-purple-100 mt-2">
+                  {produtos.length} produtos cadastrados
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Alertas */}
+          {produtosBaixoEstoque.length > 0 && (
+            <Card className="border-l-4 border-l-red-500 bg-red-50">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-red-900">
+                      Produtos com Estoque Baixo
+                    </h3>
+                    <p className="text-sm text-red-700 mt-1">
+                      {produtosBaixoEstoque.length} produto(s) estão abaixo do estoque mínimo
+                    </p>
+                    <Link to={createPageUrl("Produtos")}>
+                      <Button variant="link" className="text-red-600 px-0 mt-2">
+                        Ver Produtos <ArrowUpRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* Gráficos (apenas para quem pode ver custos) */}
+      {podVerCustos && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="border-none shadow-lg">
           <CardHeader>
             <CardTitle className="text-lg">Vendas dos Últimos {dateRange} Dias</CardTitle>
@@ -434,10 +558,10 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      </div>
+      </div>}
 
       {/* Top Vendedores e Produtos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {podVerCustos && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="border-none shadow-lg">
           <CardHeader>
             <CardTitle className="text-lg">Top Vendedores - {getNomePeriodo()}</CardTitle>
@@ -492,7 +616,7 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </div>}
 
     </div>
   );

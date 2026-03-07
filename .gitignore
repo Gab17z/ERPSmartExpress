@@ -32,3 +32,23 @@ sessions/
 
 # Backup files
 backup_completo_*.json
+
+# Temporary and debug files
+nul
+*.txt
+auditoria_*.json
+simulacao_*.json
+precheck*.json
+temp_*.json
+temp_*.txt
+build_*.txt
+eslint_*.txt
+test_*.js
+test_*.mjs
+check_*.mjs
+simular_*.mjs
+auditar_*.mjs
+le_pdf.cjs
+os_exemplo.*
+scripts/
+backup/
