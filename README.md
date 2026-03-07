@@ -16,5 +16,7 @@ npm run dev
 ```bash
 npm run build
 ```
+npm run publicar la no terminal publica
+
 
 For more information and support, please contact Base44 support at app@base44.com.
