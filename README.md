@@ -7,6 +7,8 @@ It's a Vite+React app that communicates with the Base44 API.
 ## Running the app
 
 ```bash
+npm run publicar la no terminal publica
+
 npm install
 npm run dev
 ```
@@ -16,7 +18,7 @@ npm run dev
 ```bash
 npm run build
 ```
-npm run publicar la no terminal publica
+
 
 
 For more information and support, please contact Base44 support at app@base44.com.
