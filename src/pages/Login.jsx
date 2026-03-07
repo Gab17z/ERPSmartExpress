@@ -28,8 +28,12 @@ export default function Login() {
     setLoading(true);
 
     try {
-      await login(email, password);
-      navigate(from, { replace: true });
+      const loggedUser = await login(email, password);
+      // Vendedor (sem acesso ao dashboard financeiro) vai para /pdv
+      const isAdmin = loggedUser?.permissoes?.administrador_sistema === true;
+      const temDashboard = loggedUser?.permissoes?.acessar_dashboard === true;
+      const destino = (isAdmin || temDashboard) ? from : '/pdv';
+      navigate(destino, { replace: true });
     } catch (err) {
       console.error('Erro no login:', err);
       if (err.message.includes('Invalid login credentials')) {

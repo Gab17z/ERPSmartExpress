@@ -337,7 +337,8 @@ export default function Configuracoes() {
       aprovar_orcamento_os: false,
       finalizar_os: false,
       cancelar_os: false,
-      acesso_multilojas: false
+      acesso_multilojas: false,
+      visualizar_custos: false
     }
   });
 
@@ -371,7 +372,8 @@ export default function Configuracoes() {
     aprovar_orcamento_os: false,
     finalizar_os: false,
     cancelar_os: false,
-    acesso_multilojas: false
+    acesso_multilojas: false,
+    visualizar_custos: false
   };
 
   // Presets de permissões por nível hierárquico
@@ -406,7 +408,8 @@ export default function Configuracoes() {
       aprovar_orcamento_os: true,
       finalizar_os: true,
       cancelar_os: true,
-      acesso_multilojas: true
+      acesso_multilojas: true,
+      visualizar_custos: true
     },
     // Nível 2 - Gerente: Quase tudo, sem gerenciar usuários e integrações
     2: {
@@ -438,7 +441,8 @@ export default function Configuracoes() {
       aprovar_orcamento_os: true,
       finalizar_os: true,
       cancelar_os: true,
-      acesso_multilojas: false
+      acesso_multilojas: false,
+      visualizar_custos: true
     },
     // Nível 3 - Supervisor: Operacional com supervisão, sem cancelamentos críticos
     3: {
@@ -470,39 +474,41 @@ export default function Configuracoes() {
       aprovar_orcamento_os: true,
       finalizar_os: true,
       cancelar_os: false,
-      acesso_multilojas: false
+      acesso_multilojas: false,
+      visualizar_custos: true
     },
-    // Nível 4 - Operacional (Vendedor/Técnico): Funções básicas do dia-a-dia
+    // Nível 4 - Operacional (Vendedor/Técnico): Vendas, Clientes, Produtos (sem custo), OS, Etiquetas
     4: {
       gerenciar_usuarios: false,
-      gerenciar_produtos: false,
+      gerenciar_produtos: true,
       gerenciar_clientes: true,
       realizar_vendas: true,
       gerenciar_caixa: false,
-      gerenciar_os: false,
+      gerenciar_os: true,
       avaliar_seminovos: true,
       cancelar_vendas: false,
       aplicar_descontos: false,
       visualizar_relatorios: false,
       gerenciar_fornecedores: false,
       acessar_relatorios: false,
-      acessar_dashboard: true,
-      acessar_metas: true,
-      acessar_agenda: true,
+      acessar_dashboard: false,
+      acessar_metas: false,
+      acessar_agenda: false,
       acessar_integracoes: false,
       acessar_etiquetas: true,
       acessar_logs: false,
       acessar_configuracoes: false,
       abrir_fechar_caixa: false,
       fazer_sangria_suprimento: false,
-      editar_produtos: false,
+      editar_produtos: true,
       editar_clientes: true,
       criar_os: true,
       editar_os: true,
-      aprovar_orcamento_os: false,
+      aprovar_orcamento_os: true,
       finalizar_os: true,
       cancelar_os: false,
-      acesso_multilojas: false
+      acesso_multilojas: false,
+      visualizar_custos: false
     },
     // Nível 5 - Estagiário/Aprendiz: Apenas visualização e tarefas básicas
     5: {
@@ -534,7 +540,8 @@ export default function Configuracoes() {
       aprovar_orcamento_os: false,
       finalizar_os: false,
       cancelar_os: false,
-      acesso_multilojas: false
+      acesso_multilojas: false,
+      visualizar_custos: false
     }
   };
 
@@ -4656,7 +4663,8 @@ export default function Configuracoes() {
                   { key: 'aprovar_orcamento_os', label: 'Aprovar Orçamento OS' },
                   { key: 'finalizar_os', label: 'Finalizar OS' },
                   { key: 'cancelar_os', label: 'Cancelar OS' },
-                  { key: 'acesso_multilojas', label: 'Acesso Multilojas' }
+                  { key: 'acesso_multilojas', label: 'Acesso Multilojas' },
+                  { key: 'visualizar_custos', label: 'Visualizar Custos/Lucros' }
                 ].map(perm => (
                   <div key={perm.key} className="flex items-center gap-2">
                     <input

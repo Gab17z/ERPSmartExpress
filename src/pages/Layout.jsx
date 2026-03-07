@@ -137,7 +137,7 @@ const navigationItems = [
     title: "Produtos",
     url: createPageUrl("Produtos"),
     icon: Package,
-    permissions: ["gerenciar_estoque"],
+    permissions: ["gerenciar_estoque", "gerenciar_produtos"],
     submenu: [
       { title: "Produtos", url: createPageUrl("Produtos") },
       { title: "Compras", url: createPageUrl("Compras") },
@@ -208,14 +208,14 @@ const navigationItems = [
     title: "Agenda",
     url: createPageUrl("Agenda"),
     icon: Calendar,
-    permissions: [] // Todos podem acessar
+    permissions: ["acessar_agenda"]
   },
   {
     section: "Ferramentas",
     title: "Etiquetas",
     url: createPageUrl("Etiquetas"),
     icon: Tag,
-    permissions: ["gerenciar_estoque"]
+    permissions: ["acessar_etiquetas"]
   },
   {
     section: "Ferramentas",

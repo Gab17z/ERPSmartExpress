@@ -265,66 +265,91 @@ function PagesContent() {
     return (
         <Layout currentPageName={currentPage}>
             <Routes>
+                {/* Rotas abertas para todos os usuários logados */}
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/Dashboard" element={<Dashboard />} />
-                <Route path="/Clientes" element={<Clientes />} />
-                <Route path="/Produtos" element={<Produtos />} />
-                <Route path="/Caixa" element={<Caixa />} />
                 <Route path="/PDV" element={<PDV />} />
-                <Route path="/OrdensServico" element={<OrdensServico />} />
-                <Route path="/AvaliacaoSeminovo" element={<AvaliacaoSeminovo />} />
-                <Route path="/Relatorios" element={<Relatorios />} />
-                <Route path="/Configuracoes" element={<Configuracoes />} />
-                <Route path="/Marcas" element={<Marcas />} />
-                <Route path="/Fornecedores" element={<Fornecedores />} />
-                <Route path="/Categorias" element={<Categorias />} />
-                <Route path="/Usuarios" element={<Usuarios />} />
-                <Route path="/CalculadoraPagamentos" element={<CalculadoraPagamentos />} />
-                <Route path="/Aniversarios" element={<Aniversarios />} />
-                <Route path="/PosVenda" element={<PosVenda />} />
-                <Route path="/CuponsDesconto" element={<CuponsDesconto />} />
-                <Route path="/ContasReceber" element={<ContasReceber />} />
-                <Route path="/Etiquetas" element={<Etiquetas />} />
-                <Route path="/Integracoes" element={<Integracoes />} />
-                <Route path="/ContasPagar" element={<ContasPagar />} />
-                <Route path="/FluxoCaixa" element={<FluxoCaixa />} />
-                <Route path="/CentroCustos" element={<CentroCustos />} />
-                <Route path="/DRE" element={<DRE />} />
-                <Route path="/RelatorioEstoque" element={<RelatorioEstoque />} />
-                <Route path="/RelatorioOS" element={<RelatorioOS />} />
-                <Route path="/RelatorioClientes" element={<RelatorioClientes />} />
-                <Route path="/RelatorioFinanceiro" element={<RelatorioFinanceiro />} />
-                <Route path="/RelatorioComissoes" element={<RelatorioComissoes />} />
-                <Route path="/Fiscal" element={<Fiscal />} />
-                <Route path="/MovimentacaoFinanceira" element={<MovimentacaoFinanceira />} />
-                <Route path="/ConciliacaoBancaria" element={<ConciliacaoBancaria />} />
-                <Route path="/RelatorioSeminovos" element={<RelatorioSeminovos />} />
-                <Route path="/RelatorioFiscal" element={<RelatorioFiscal />} />
-                <Route path="/NFe" element={<NFe />} />
-                <Route path="/NFCe" element={<NFCe />} />
-                <Route path="/Logs" element={<Logs />} />
-                <Route path="/MetasAprimorado" element={<MetasAprimorado />} />
-                <Route path="/Metas" element={<Metas />} />
-                <Route path="/AgendaCompleta" element={<AgendaCompleta />} />
-                <Route path="/Agenda" element={<Agenda />} />
+                <Route path="/MeuPerfil" element={<MeuPerfil />} />
+
+                {/* Rotas do vendedor (requerem permissão específica) */}
+                <Route path="/Clientes" element={<ProtectedRoute requiredPermission="gerenciar_clientes"><Clientes /></ProtectedRoute>} />
+                <Route path="/Produtos" element={<ProtectedRoute requiredPermission={["gerenciar_estoque", "gerenciar_produtos"]}><Produtos /></ProtectedRoute>} />
+                <Route path="/Marcas" element={<ProtectedRoute requiredPermission={["gerenciar_estoque", "gerenciar_produtos"]}><Marcas /></ProtectedRoute>} />
+                <Route path="/Categorias" element={<ProtectedRoute requiredPermission={["gerenciar_estoque", "gerenciar_produtos"]}><Categorias /></ProtectedRoute>} />
+                <Route path="/Etiquetas" element={<ProtectedRoute requiredPermission="acessar_etiquetas"><Etiquetas /></ProtectedRoute>} />
+                <Route path="/OrdensServico" element={<ProtectedRoute requiredPermission={["gerenciar_os", "criar_os"]}><OrdensServico /></ProtectedRoute>} />
+                <Route path="/AvaliacaoSeminovo" element={<ProtectedRoute requiredPermission="avaliar_seminovos"><AvaliacaoSeminovo /></ProtectedRoute>} />
+                <Route path="/CalculadoraPagamentos" element={<ProtectedRoute requiredPermission="realizar_vendas"><CalculadoraPagamentos /></ProtectedRoute>} />
+
+                {/* Caixa */}
+                <Route path="/Caixa" element={<ProtectedRoute requiredPermission={["gerenciar_caixa", "abrir_fechar_caixa"]}><Caixa /></ProtectedRoute>} />
+
+                {/* Agenda */}
+                <Route path="/Agenda" element={<ProtectedRoute requiredPermission="acessar_agenda"><Agenda /></ProtectedRoute>} />
+                <Route path="/AgendaCompleta" element={<ProtectedRoute requiredPermission="acessar_agenda"><AgendaCompleta /></ProtectedRoute>} />
+
+                {/* Metas */}
+                <Route path="/Metas" element={<ProtectedRoute requiredPermission="acessar_metas"><Metas /></ProtectedRoute>} />
+                <Route path="/MetasAprimorado" element={<ProtectedRoute requiredPermission="acessar_metas"><MetasAprimorado /></ProtectedRoute>} />
+
+                {/* Financeiro - requer visualizar_custos */}
+                <Route path="/Financeiro" element={<ProtectedRoute requiredPermission="visualizar_custos"><Financeiro /></ProtectedRoute>} />
+                <Route path="/ContasReceber" element={<ProtectedRoute requiredPermission="visualizar_custos"><ContasReceber /></ProtectedRoute>} />
+                <Route path="/ContasPagar" element={<ProtectedRoute requiredPermission="visualizar_custos"><ContasPagar /></ProtectedRoute>} />
+                <Route path="/ContasRecorrentes" element={<ProtectedRoute requiredPermission="visualizar_custos"><ContasRecorrentes /></ProtectedRoute>} />
+                <Route path="/ContasBancarias" element={<ProtectedRoute requiredPermission="visualizar_custos"><ContasBancarias /></ProtectedRoute>} />
+                <Route path="/FluxoCaixa" element={<ProtectedRoute requiredPermission="visualizar_custos"><FluxoCaixa /></ProtectedRoute>} />
+                <Route path="/CentroCustos" element={<ProtectedRoute requiredPermission="visualizar_custos"><CentroCustos /></ProtectedRoute>} />
+                <Route path="/DRE" element={<ProtectedRoute requiredPermission="visualizar_custos"><DRE /></ProtectedRoute>} />
+                <Route path="/MovimentacaoFinanceira" element={<ProtectedRoute requiredPermission="visualizar_custos"><MovimentacaoFinanceira /></ProtectedRoute>} />
+                <Route path="/ConciliacaoBancaria" element={<ProtectedRoute requiredPermission="visualizar_custos"><ConciliacaoBancaria /></ProtectedRoute>} />
+                <Route path="/Previsoes" element={<ProtectedRoute requiredPermission="visualizar_custos"><Previsoes /></ProtectedRoute>} />
+                <Route path="/RentabilidadeLoja" element={<ProtectedRoute requiredPermission="visualizar_custos"><RentabilidadeLoja /></ProtectedRoute>} />
+
+                {/* Relatórios */}
+                <Route path="/Relatorios" element={<ProtectedRoute requiredPermission={["visualizar_relatorios", "acessar_relatorios"]}><Relatorios /></ProtectedRoute>} />
+                <Route path="/RelatorioEstoque" element={<ProtectedRoute requiredPermission={["visualizar_relatorios", "acessar_relatorios"]}><RelatorioEstoque /></ProtectedRoute>} />
+                <Route path="/RelatorioOS" element={<ProtectedRoute requiredPermission={["visualizar_relatorios", "acessar_relatorios"]}><RelatorioOS /></ProtectedRoute>} />
+                <Route path="/RelatorioClientes" element={<ProtectedRoute requiredPermission={["visualizar_relatorios", "acessar_relatorios"]}><RelatorioClientes /></ProtectedRoute>} />
+                <Route path="/RelatorioFinanceiro" element={<ProtectedRoute requiredPermission="visualizar_custos"><RelatorioFinanceiro /></ProtectedRoute>} />
+                <Route path="/RelatorioComissoes" element={<ProtectedRoute requiredPermission={["visualizar_relatorios", "acessar_relatorios"]}><RelatorioComissoes /></ProtectedRoute>} />
+                <Route path="/RelatorioSeminovos" element={<ProtectedRoute requiredPermission={["visualizar_relatorios", "acessar_relatorios"]}><RelatorioSeminovos /></ProtectedRoute>} />
+                <Route path="/RelatorioFiscal" element={<ProtectedRoute requiredPermission="visualizar_custos"><RelatorioFiscal /></ProtectedRoute>} />
+                <Route path="/AnalisesCurvaABC" element={<ProtectedRoute requiredPermission={["visualizar_relatorios", "acessar_relatorios"]}><AnalisesCurvaABC /></ProtectedRoute>} />
+
+                {/* Fiscal */}
+                <Route path="/Fiscal" element={<ProtectedRoute requiredPermission="visualizar_custos"><Fiscal /></ProtectedRoute>} />
+                <Route path="/NFe" element={<ProtectedRoute requiredPermission="visualizar_custos"><NFe /></ProtectedRoute>} />
+                <Route path="/NFCe" element={<ProtectedRoute requiredPermission="visualizar_custos"><NFCe /></ProtectedRoute>} />
+
+                {/* Fornecedores e Compras */}
+                <Route path="/Fornecedores" element={<ProtectedRoute requiredPermission="gerenciar_fornecedores"><Fornecedores /></ProtectedRoute>} />
+                <Route path="/Compras" element={<ProtectedRoute requiredPermission="gerenciar_fornecedores"><Compras /></ProtectedRoute>} />
+
+                {/* CRM e Marketing */}
+                <Route path="/CRM" element={<ProtectedRoute requiredPermission={["visualizar_relatorios", "acessar_relatorios"]}><CRM /></ProtectedRoute>} />
+                <Route path="/Aniversarios" element={<ProtectedRoute requiredPermission={["visualizar_relatorios", "acessar_relatorios"]}><Aniversarios /></ProtectedRoute>} />
+                <Route path="/PosVenda" element={<ProtectedRoute requiredPermission={["visualizar_relatorios", "acessar_relatorios"]}><PosVenda /></ProtectedRoute>} />
+                <Route path="/Marketing" element={<ProtectedRoute requiredPermission="acessar_integracoes"><Marketing /></ProtectedRoute>} />
+                <Route path="/CuponsDesconto" element={<ProtectedRoute requiredPermission="acessar_configuracoes"><CuponsDesconto /></ProtectedRoute>} />
+                <Route path="/ConfiguracaoCupom" element={<ProtectedRoute requiredPermission="acessar_configuracoes"><ConfiguracaoCupom /></ProtectedRoute>} />
+
+                {/* Comissões e Devoluções */}
+                <Route path="/Comissoes" element={<ProtectedRoute requiredPermission={["visualizar_relatorios", "acessar_relatorios"]}><Comissoes /></ProtectedRoute>} />
+                <Route path="/Devolucoes" element={<ProtectedRoute requiredPermission="cancelar_vendas"><Devolucoes /></ProtectedRoute>} />
+
+                {/* Administração */}
+                <Route path="/Configuracoes" element={<ProtectedRoute requiredPermission="acessar_configuracoes"><Configuracoes /></ProtectedRoute>} />
+                <Route path="/Usuarios" element={<ProtectedRoute requiredPermission="gerenciar_usuarios"><Usuarios /></ProtectedRoute>} />
+                <Route path="/Logs" element={<ProtectedRoute requiredPermission="acessar_logs"><Logs /></ProtectedRoute>} />
+                <Route path="/Integracoes" element={<ProtectedRoute requiredPermission="acessar_integracoes"><Integracoes /></ProtectedRoute>} />
+                <Route path="/ChatbotConfig" element={<ProtectedRoute requiredPermission="acessar_integracoes"><ChatbotConfig /></ProtectedRoute>} />
+                <Route path="/AdmWhatsApp" element={<ProtectedRoute requiredPermission="acessar_integracoes"><AdmWhatsApp /></ProtectedRoute>} />
+                <Route path="/MultiLojas" element={<ProtectedRoute requiredPermission="acesso_multilojas"><MultiLojas /></ProtectedRoute>} />
+
+                {/* Marketplace */}
                 <Route path="/Marketplace" element={<Marketplace />} />
                 <Route path="/Carrinho" element={<Carrinho />} />
-                <Route path="/ContasRecorrentes" element={<ContasRecorrentes />} />
-                <Route path="/Compras" element={<Compras />} />
-                <Route path="/Devolucoes" element={<Devolucoes />} />
-                <Route path="/ContasBancarias" element={<ContasBancarias />} />
-                <Route path="/Comissoes" element={<Comissoes />} />
-                <Route path="/AnalisesCurvaABC" element={<AnalisesCurvaABC />} />
-                <Route path="/ChatbotConfig" element={<ChatbotConfig />} />
-                <Route path="/AdmWhatsApp" element={<AdmWhatsApp />} />
-                <Route path="/MultiLojas" element={<MultiLojas />} />
-                <Route path="/Previsoes" element={<Previsoes />} />
-                <Route path="/RentabilidadeLoja" element={<RentabilidadeLoja />} />
-                <Route path="/CRM" element={<CRM />} />
-                <Route path="/ConfiguracaoCupom" element={<ConfiguracaoCupom />} />
-                <Route path="/Marketing" element={<Marketing />} />
-                <Route path="/Financeiro" element={<Financeiro />} />
-                <Route path="/MeuPerfil" element={<MeuPerfil />} />
             </Routes>
         </Layout>
     );

@@ -56,6 +56,10 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (email, password) => {
+    if (!supabase) {
+      throw new Error('Sistema indisponível. Verifique a configuração do servidor.');
+    }
+
     // Buscar usuário pelo email na tabela usuario
     const { data: usuarios, error } = await supabase
       .from('usuario')

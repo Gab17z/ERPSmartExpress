@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -60,6 +61,10 @@ function sanitizeBarcode(barcode) {
 }
 
 export default function Produtos() {
+  const { user } = useAuth();
+  const podVerCustos = user?.permissoes?.visualizar_custos === true || user?.permissoes?.administrador_sistema === true;
+  const podeDeletar = user?.permissoes?.administrador_sistema === true;
+
   const [dialogProduto, setDialogProduto] = useState(false);
   const [dialogEtiqueta, setDialogEtiqueta] = useState(false);
   const [dialogImportacao, setDialogImportacao] = useState(false);
@@ -1124,17 +1129,19 @@ export default function Produtos() {
                       )}
                     </div>
                   </TableHead>
-                  <TableHead
-                    className="cursor-pointer hover:bg-slate-100 select-none"
-                    onClick={() => handleOrdenar('margem_lucro')}
-                  >
-                    <div className="flex items-center gap-1">
-                      Margem
-                      {ordenacao.campo === 'margem_lucro' && (
-                        <span className="text-xs">{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </div>
-                  </TableHead>
+                  {podVerCustos && (
+                    <TableHead
+                      className="cursor-pointer hover:bg-slate-100 select-none"
+                      onClick={() => handleOrdenar('margem_lucro')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Margem
+                        {ordenacao.campo === 'margem_lucro' && (
+                          <span className="text-xs">{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </TableHead>
+                  )}
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1171,9 +1178,11 @@ export default function Produtos() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{produto.margem_lucro?.toFixed(1) || 0}%</Badge>
-                    </TableCell>
+                    {podVerCustos && (
+                      <TableCell>
+                        <Badge variant="secondary">{produto.margem_lucro?.toFixed(1) || 0}%</Badge>
+                      </TableCell>
+                    )}
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(produto)} className="text-blue-600 hover:bg-blue-50">
@@ -1182,9 +1191,11 @@ export default function Produtos() {
                         <Button variant="ghost" size="sm" onClick={() => { setProdutoEtiqueta(produto); setDialogEtiqueta(true); }} className="text-slate-600 hover:bg-slate-50">
                           <Printer className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(produto)} className="text-red-600 hover:bg-red-50">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {podeDeletar && (
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(produto)} className="text-red-600 hover:bg-red-50">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -1288,14 +1299,16 @@ export default function Produtos() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label>Preço de Custo</Label>
-                <InputMoeda
-                  value={formData.preco_custo}
-                  onChange={(valor) => handleChange('preco_custo', valor)}
-                />
-              </div>
+            <div className={`grid ${podVerCustos ? 'grid-cols-3' : 'grid-cols-1'} gap-4`}>
+              {podVerCustos && (
+                <div>
+                  <Label>Preço de Custo</Label>
+                  <InputMoeda
+                    value={formData.preco_custo}
+                    onChange={(valor) => handleChange('preco_custo', valor)}
+                  />
+                </div>
+              )}
               <div>
                 <Label className={camposInvalidos.includes('preco_venda') ? 'text-red-600' : ''}>
                   Preço de Venda * {camposInvalidos.includes('preco_venda') && <span className="text-red-600 text-xs">(obrigatório)</span>}
@@ -1306,10 +1319,12 @@ export default function Produtos() {
                   className={camposInvalidos.includes('preco_venda') ? 'border-red-500 border-2' : ''}
                 />
               </div>
-              <div>
-                <Label>Margem</Label>
-                <Input value={formData.margem_lucro?.toFixed(2) || 0} disabled className="bg-slate-100" />
-              </div>
+              {podVerCustos && (
+                <div>
+                  <Label>Margem</Label>
+                  <Input value={formData.margem_lucro?.toFixed(2) || 0} disabled className="bg-slate-100" />
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">

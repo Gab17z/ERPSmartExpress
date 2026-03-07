@@ -10,7 +10,8 @@
     "whatsapp:install": "cd whatsapp-server && npm install",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "publicar": "powershell -ExecutionPolicy Bypass -File publicar.ps1"
   },
   "dependencies": {
     "@hookform/resolvers": "^4.1.2",
