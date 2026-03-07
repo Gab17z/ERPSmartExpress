@@ -3,7 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('ERRO CRÍTICO: Variáveis de ambiente do Supabase não encontradas!');
+  console.log('Verifique se VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY estão configuradas no Vercel.');
+}
+
+export const supabase = (supabaseUrl && supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
 
 // Helper para converter nomes de tabela de CamelCase para snake_case
 function toSnakeCase(str) {
