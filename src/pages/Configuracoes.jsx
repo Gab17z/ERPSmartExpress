@@ -498,7 +498,7 @@ export default function Configuracoes() {
       acessar_etiquetas: true,
       acessar_logs: false,
       acessar_configuracoes: false,
-      abrir_fechar_caixa: false,
+      abrir_fechar_caixa: true,
       fazer_sangria_suprimento: false,
       editar_produtos: true,
       editar_clientes: true,
