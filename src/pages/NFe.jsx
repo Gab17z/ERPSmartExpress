@@ -224,7 +224,7 @@ export default function NFe() {
                   <SelectValue placeholder="Selecione um produto" />
                 </SelectTrigger>
                 <SelectContent>
-                  {produtos.filter(p => p.ativo).map(p => (
+                  {produtos.filter(p => p.ativo !== false).map(p => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.nome} - R$ {p.preco_venda?.toFixed(2)} - SKU: {p.sku || 'N/A'}
                     </SelectItem>
@@ -313,7 +313,7 @@ export default function NFe() {
             <DialogTitle>Selecionar Cliente</DialogTitle>
           </DialogHeader>
           <div className="space-y-2 max-h-96 overflow-y-auto">
-            {clientes.filter(c => c.ativo).map(cliente => (
+            {clientes.filter(c => c.ativo !== false).map(cliente => (
               <Button
                 key={cliente.id}
                 variant="outline"

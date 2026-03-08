@@ -517,7 +517,7 @@ export default function Compras() {
                       <CommandList>
                         <CommandEmpty>Nenhum fornecedor encontrado.</CommandEmpty>
                         <CommandGroup>
-                          {fornecedores.filter(f => f.ativo).map((fornecedor) => (
+                          {fornecedores.filter(f => f.ativo !== false).map((fornecedor) => (
                             <CommandItem
                               key={fornecedor.id}
                               value={fornecedor.nome_fantasia || fornecedor.nome}

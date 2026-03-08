@@ -451,7 +451,7 @@ export default function ContasPagar() {
             <DialogTitle>Selecionar Fornecedor</DialogTitle>
           </DialogHeader>
           <div className="space-y-2 max-h-96 overflow-y-auto">
-            {fornecedores.filter(f => f.ativo).map(fornecedor => (
+            {fornecedores.filter(f => f.ativo !== false).map(fornecedor => (
               <Button
                 key={fornecedor.id}
                 variant="outline"

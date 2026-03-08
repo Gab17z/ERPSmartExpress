@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,7 +97,7 @@ export default function OrdensServico() {
   const [osParaImprimir, setOsParaImprimir] = useState(null);
   const [selectedOS, setSelectedOS] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState("todas");
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const [uploading, setUploading] = useState(false);
   const [capturandoFoto, setCapturandoFoto] = useState(false);
   const [streamAtivo, setStreamAtivo] = useState(null);
@@ -306,11 +307,11 @@ export default function OrdensServico() {
         cliente_endereco: cliente?.endereco,
         status: "recebido",
         data_entrada: new Date().toISOString(),
-        atendente_abertura: user?.full_name,
+        atendente_abertura: user?.nome,
         checklist_entrada: fullChecklistEntrada,
         historico: [{
           data: new Date().toISOString(),
-          usuario: user?.full_name,
+          usuario: user?.nome,
           status_anterior: null,
           status_novo: "recebido",
           observacao: "OS criada - Aparelho recebido"
@@ -339,7 +340,7 @@ export default function OrdensServico() {
         ...historicoAtual,
         {
           data: new Date().toISOString(),
-          usuario: user?.full_name,
+          usuario: user?.nome,
           status_anterior: os.status,
           status_novo: novoStatus,
           observacao: observacao
@@ -354,11 +355,11 @@ export default function OrdensServico() {
 
       if (novoStatus === "entregue") {
         updateData.data_entrega = new Date().toISOString();
-        updateData.atendente_finalizacao = user?.full_name;
+        updateData.atendente_finalizacao = user?.nome;
       } else if (novoStatus === "pronto") {
         updateData.data_conclusao = new Date().toISOString();
       } else if (novoStatus === "em_diagnostico" && !os.tecnico_responsavel) {
-        updateData.tecnico_responsavel = user?.full_name;
+        updateData.tecnico_responsavel = user?.nome;
         updateData.tecnico_id = user?.id;
       }
 

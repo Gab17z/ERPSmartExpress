@@ -316,7 +316,7 @@ export default function Clientes() {
     if (selectedCliente) {
       updateMutation.mutate({ id: selectedCliente.id, data: dadosFormatados });
     } else {
-      createMutation.mutate(dadosFormatados);
+      createMutation.mutate({ ...dadosFormatados, ativo: true });
     }
   };
 

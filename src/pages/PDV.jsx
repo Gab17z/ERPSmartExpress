@@ -1523,7 +1523,7 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
             </div>
 
             <div id="lista-clientes-pdv" className="space-y-2 max-h-96 overflow-y-auto">
-              {clientes.filter(c => c.ativo).map((cliente) => (
+              {clientes.filter(c => c.ativo !== false).map((cliente) => (
                 <Button
                   key={cliente.id}
                   data-cliente={`${cliente.nome_completo} ${cliente.telefone1}`}
