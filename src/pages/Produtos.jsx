@@ -1276,7 +1276,7 @@ export default function Produtos() {
                     <SelectValue placeholder="Selecione uma marca" />
                   </SelectTrigger>
                   <SelectContent>
-                    {marcas.filter(m => m.ativo).map(marca => (
+                    {marcas.filter(m => m.ativo !== false).map(marca => (
                       <SelectItem key={marca.id} value={marca.nome}>
                         {marca.nome}
                       </SelectItem>

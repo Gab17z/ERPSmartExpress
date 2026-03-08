@@ -167,7 +167,7 @@ export default function NFCe() {
                   <SelectValue placeholder="Escolha um produto" />
                 </SelectTrigger>
                 <SelectContent>
-                  {produtos.filter(p => p.ativo && (p.estoque_atual || 0) > 0).map(p => (
+                  {produtos.filter(p => p.ativo !== false && (p.estoque_atual || 0) > 0).map(p => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.nome} - R$ {p.preco_venda?.toFixed(2)} ({p.estoque_atual || 0} un.)
                     </SelectItem>
@@ -260,7 +260,7 @@ export default function NFCe() {
             >
               Consumidor (sem identificação)
             </Button>
-            {clientes.filter(c => c.ativo).map(cliente => (
+            {clientes.filter(c => c.ativo !== false).map(cliente => (
               <Button
                 key={cliente.id}
                 variant="outline"
