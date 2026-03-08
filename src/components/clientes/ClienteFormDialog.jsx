@@ -22,6 +22,7 @@ export default function ClienteFormDialog({ open, onOpenChange, clienteInicial =
     telefone1: "",
     telefone2: "",
     email: "",
+    ativo: true,
     endereco: {
       cep: "",
       logradouro: "",
@@ -100,6 +101,7 @@ export default function ClienteFormDialog({ open, onOpenChange, clienteInicial =
     // Limpar dados antes de enviar - converter strings vazias em null para campos de data
     const dadosLimpos = {
       ...formData,
+      ativo: formData.ativo !== false, // Garante que seja boolean true por padrão
       data_nascimento: formData.data_nascimento || null,
       cpf_cnpj: formData.cpf_cnpj || null,
       telefone2: formData.telefone2 || null,
@@ -125,7 +127,7 @@ export default function ClienteFormDialog({ open, onOpenChange, clienteInicial =
               <Label>Nome Completo *</Label>
               <Input
                 value={formData.nome_completo}
-                onChange={(e) => setFormData({...formData, nome_completo: capitalizarNome(e.target.value)})}
+                onChange={(e) => setFormData({ ...formData, nome_completo: capitalizarNome(e.target.value) })}
                 required
               />
             </div>
@@ -150,14 +152,14 @@ export default function ClienteFormDialog({ open, onOpenChange, clienteInicial =
 
             <div>
               <Label>Data Nascimento</Label>
-              <Input type="date" value={formData.data_nascimento} onChange={(e) => setFormData({...formData, data_nascimento: e.target.value})} />
+              <Input type="date" value={formData.data_nascimento} onChange={(e) => setFormData({ ...formData, data_nascimento: e.target.value })} />
             </div>
 
             <div>
               <Label>Telefone Principal *</Label>
               <Input
                 value={formData.telefone1}
-                onChange={(e) => setFormData({...formData, telefone1: formatarTelefoneDigitando(e.target.value)})}
+                onChange={(e) => setFormData({ ...formData, telefone1: formatarTelefoneDigitando(e.target.value) })}
                 placeholder="(00) 00000-0000"
                 maxLength={15}
                 required
@@ -168,7 +170,7 @@ export default function ClienteFormDialog({ open, onOpenChange, clienteInicial =
               <Label>Telefone 2</Label>
               <Input
                 value={formData.telefone2}
-                onChange={(e) => setFormData({...formData, telefone2: formatarTelefoneDigitando(e.target.value)})}
+                onChange={(e) => setFormData({ ...formData, telefone2: formatarTelefoneDigitando(e.target.value) })}
                 placeholder="(00) 00000-0000"
                 maxLength={15}
               />
@@ -176,7 +178,7 @@ export default function ClienteFormDialog({ open, onOpenChange, clienteInicial =
 
             <div className="col-span-2">
               <Label>Email</Label>
-              <Input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+              <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
             </div>
 
             <div className="col-span-2 border-t pt-4">
@@ -188,7 +190,7 @@ export default function ClienteFormDialog({ open, onOpenChange, clienteInicial =
                     value={formData.endereco?.cep || ""}
                     onChange={(e) => {
                       const cepFormatado = formatarCEPDigitando(e.target.value);
-                      setFormData({...formData, endereco: {...formData.endereco, cep: cepFormatado}});
+                      setFormData({ ...formData, endereco: { ...formData.endereco, cep: cepFormatado } });
                       if (cepFormatado.replace(/\D/g, '').length === 8) {
                         buscarCEP(cepFormatado);
                       }
@@ -202,7 +204,7 @@ export default function ClienteFormDialog({ open, onOpenChange, clienteInicial =
                 </div>
                 <div>
                   <Label>Tipo</Label>
-                  <Select value={formData.endereco?.tipo_logradouro || "rua"} onValueChange={(v) => setFormData({...formData, endereco: {...formData.endereco, tipo_logradouro: v}})}>
+                  <Select value={formData.endereco?.tipo_logradouro || "rua"} onValueChange={(v) => setFormData({ ...formData, endereco: { ...formData.endereco, tipo_logradouro: v } })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="rua">Rua</SelectItem>
@@ -214,34 +216,34 @@ export default function ClienteFormDialog({ open, onOpenChange, clienteInicial =
                 </div>
                 <div className="col-span-2">
                   <Label>Logradouro</Label>
-                  <Input value={formData.endereco?.logradouro || ""} onChange={(e) => setFormData({...formData, endereco: {...formData.endereco, logradouro: e.target.value}})} />
+                  <Input value={formData.endereco?.logradouro || ""} onChange={(e) => setFormData({ ...formData, endereco: { ...formData.endereco, logradouro: e.target.value } })} />
                 </div>
                 <div>
                   <Label>Número</Label>
-                  <Input value={formData.endereco?.numero || ""} onChange={(e) => setFormData({...formData, endereco: {...formData.endereco, numero: e.target.value}})} />
+                  <Input value={formData.endereco?.numero || ""} onChange={(e) => setFormData({ ...formData, endereco: { ...formData.endereco, numero: e.target.value } })} />
                 </div>
                 <div>
                   <Label>Complemento</Label>
-                  <Input value={formData.endereco?.complemento || ""} onChange={(e) => setFormData({...formData, endereco: {...formData.endereco, complemento: e.target.value}})} />
+                  <Input value={formData.endereco?.complemento || ""} onChange={(e) => setFormData({ ...formData, endereco: { ...formData.endereco, complemento: e.target.value } })} />
                 </div>
                 <div>
                   <Label>Bairro</Label>
-                  <Input value={formData.endereco?.bairro || ""} onChange={(e) => setFormData({...formData, endereco: {...formData.endereco, bairro: e.target.value}})} />
+                  <Input value={formData.endereco?.bairro || ""} onChange={(e) => setFormData({ ...formData, endereco: { ...formData.endereco, bairro: e.target.value } })} />
                 </div>
                 <div>
                   <Label>Cidade</Label>
-                  <Input value={formData.endereco?.cidade || ""} onChange={(e) => setFormData({...formData, endereco: {...formData.endereco, cidade: e.target.value}})} />
+                  <Input value={formData.endereco?.cidade || ""} onChange={(e) => setFormData({ ...formData, endereco: { ...formData.endereco, cidade: e.target.value } })} />
                 </div>
                 <div className="col-span-2">
                   <Label>Estado</Label>
-                  <Input value={formData.endereco?.estado || ""} onChange={(e) => setFormData({...formData, endereco: {...formData.endereco, estado: e.target.value}})} placeholder="SP" maxLength={2} />
+                  <Input value={formData.endereco?.estado || ""} onChange={(e) => setFormData({ ...formData, endereco: { ...formData.endereco, estado: e.target.value } })} placeholder="SP" maxLength={2} />
                 </div>
               </div>
             </div>
 
             <div className="col-span-2">
               <Label>Como conheceu a loja?</Label>
-              <Select value={formData.fonte || "loja_fisica"} onValueChange={(v) => setFormData({...formData, fonte: v})}>
+              <Select value={formData.fonte || "loja_fisica"} onValueChange={(v) => setFormData({ ...formData, fonte: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="loja_fisica">Loja Física</SelectItem>
@@ -255,7 +257,7 @@ export default function ClienteFormDialog({ open, onOpenChange, clienteInicial =
 
             <div className="col-span-2">
               <Label>Observações</Label>
-              <Textarea value={formData.observacoes || ""} onChange={(e) => setFormData({...formData, observacoes: e.target.value})} rows={3} />
+              <Textarea value={formData.observacoes || ""} onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })} rows={3} />
             </div>
           </div>
 
