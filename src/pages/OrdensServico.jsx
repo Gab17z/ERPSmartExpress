@@ -455,6 +455,7 @@ export default function OrdensServico() {
 
     let sucessos = 0;
     let falhas = 0;
+    let erroMsg = '';
 
     for (const file of files) {
       try {
@@ -472,13 +473,14 @@ export default function OrdensServico() {
         }
       } catch (error) {
         console.error("Erro no upload:", error);
+        erroMsg = error.message || 'Erro desconhecido';
         falhas++;
       }
     }
 
     if (falhas > 0) {
       setUploadFalhou(true);
-      toast.error(`${falhas} foto(s) falharam no envio.`);
+      toast.error(`${falhas} foto(s) falharam no envio. ${erroMsg || ''}`);
     }
 
     if (sucessos > 0) {

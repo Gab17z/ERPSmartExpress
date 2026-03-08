@@ -265,9 +265,15 @@ const integrations = {
      */
     UploadFile: async ({ file, path = 'uploads' }) => {
       if (!file) throw new Error('Arquivo não fornecido');
+      if (!supabase) throw new Error('Sistema indisponível. Verifique a configuração do servidor.');
+
+      // Validar tamanho (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('Arquivo muito grande. Máximo permitido: 5MB');
+      }
 
       // Gerar nome único para o arquivo
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split('.').pop().toLowerCase();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `${path}/${fileName}`;
 
@@ -279,7 +285,16 @@ const integrations = {
           upsert: false
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro no upload Supabase Storage:', error);
+        if (error.message?.includes('policy') || error.message?.includes('RLS') || error.statusCode === '403' || error.status === 403) {
+          throw new Error('Sem permissão para upload. Verifique as políticas RLS do bucket "uploads" no Supabase.');
+        }
+        if (error.message?.includes('Bucket not found') || error.message?.includes('not found')) {
+          throw new Error('Bucket "uploads" não encontrado no Supabase Storage. Crie o bucket no painel do Supabase.');
+        }
+        throw error;
+      }
 
       // Obter URL pública
       const { data: urlData } = supabase.storage
