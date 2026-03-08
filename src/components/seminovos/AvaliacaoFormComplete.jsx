@@ -167,7 +167,7 @@ export default function AvaliacaoFormComplete({ onSuccess }) {
         valor_mercado: valorMercado,
         valor_oferecido: Math.round(valorOferecido * 100) / 100,
         justificativa: justificativa,
-        avaliador: user?.full_name,
+        avaliador: user?.nome,
         avaliador_id: user?.id,
         data_avaliacao: new Date().toISOString(),
         status: "concluida"

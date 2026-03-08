@@ -157,11 +157,11 @@ export default function OSFormComplete({ onSuccess }) {
         cliente_endereco: cliente?.endereco,
         status: "recebido",
         data_entrada: new Date().toISOString(),
-        atendente_abertura: user?.full_name,
+        atendente_abertura: user?.nome,
         checklist_entrada: fullChecklistEntrada,
         historico: [{
           data: new Date().toISOString(),
-          usuario: user?.full_name,
+          usuario: user?.nome,
           status_anterior: null,
           status_novo: "recebido",
           observacao: "OS criada - Aparelho recebido"

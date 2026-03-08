@@ -115,7 +115,7 @@ export default function Caixa() {
       // Não enviar usuario_abertura_id pois sistema usa auth customizada
       return base44.entities.Caixa.create({
         numero_caixa: numeroCaixa,
-        usuario_abertura: user?.full_name || "Usuário",
+        usuario_abertura: user?.nome || "Usuário",
         data_abertura: new Date().toISOString(),
         valor_inicial: valorInicial,
         status: 'aberto'
@@ -168,9 +168,9 @@ export default function Caixa() {
         caixa_id: caixaAberto.id,
         tipo: 'sangria',
         valor: valorMovimentacao,
-        descricao: descricaoMovimentacao + (aprovado ? ` | Aprovado por: ${user?.full_name || 'Gerente'}` : ''),
+        descricao: descricaoMovimentacao + (aprovado ? ` | Aprovado por: ${user?.nome || 'Gerente'}` : ''),
         usuario_id: user?.id || null,
-        usuario_nome: user?.full_name || "Usuário" // Campo extra para exibição
+        usuario_nome: user?.nome || "Usuário" // Campo extra para exibição
       };
 
       const movimentacao = await base44.entities.MovimentacaoCaixa.create(movimentacaoData);
@@ -178,9 +178,9 @@ export default function Caixa() {
       // Retornar dados para impressão do recibo (com campos adicionais para o recibo)
       return {
         ...movimentacao,
-        usuario: user?.full_name || "Usuário",
+        usuario: user?.nome || "Usuário",
         data_hora: movimentacao?.created_date || dataHora,
-        aprovado_por: aprovado ? user?.full_name : null
+        aprovado_por: aprovado ? user?.nome : null
       };
     },
     onSuccess: (movimentacao) => {
@@ -231,7 +231,7 @@ export default function Caixa() {
         valor: valorMovimentacao,
         descricao: descricaoMovimentacao,
         usuario_id: user?.id || null,
-        usuario_nome: user?.full_name || "Usuário" // Campo extra para exibição
+        usuario_nome: user?.nome || "Usuário" // Campo extra para exibição
       };
 
       const movimentacao = await base44.entities.MovimentacaoCaixa.create(movimentacaoData);
@@ -239,7 +239,7 @@ export default function Caixa() {
       // Retornar dados para impressão do recibo (com campos adicionais para o recibo)
       return {
         ...movimentacao,
-        usuario: user?.full_name || "Usuário",
+        usuario: user?.nome || "Usuário",
         data_hora: movimentacao?.created_date || dataHora
       };
     },
@@ -307,14 +307,14 @@ export default function Caixa() {
           observacoes += ` - Justificativa: ${justificativa}`;
         }
         if (aprovado) {
-          observacoes += ` - Aprovado por: ${user?.full_name || 'Gerente'}`;
+          observacoes += ` - Aprovado por: ${user?.nome || 'Gerente'}`;
         }
       }
 
       return base44.entities.Caixa.update(caixaAberto.id, {
         status: 'fechado',
         data_fechamento: new Date().toISOString(),
-        usuario_fechamento: user?.full_name || "Usuário",
+        usuario_fechamento: user?.nome || "Usuário",
         total_vendas: totalVendas,
         valor_contado: totalContado,
         valor_fechamento: valorEsperadoReal,
@@ -322,7 +322,7 @@ export default function Caixa() {
         total_sangrias: totalSangrias,
         total_suprimentos: totalSuprimentos,
         observacoes_fechamento: observacoes,
-        aprovacao_diferenca: diferencaAbsoluta > LIMITE_DIFERENCA_SEM_APROVACAO ? user?.full_name : null
+        aprovacao_diferenca: diferencaAbsoluta > LIMITE_DIFERENCA_SEM_APROVACAO ? user?.nome : null
       });
     },
     onSuccess: () => {

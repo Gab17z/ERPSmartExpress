@@ -932,8 +932,8 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
         troco: Math.max(0, trocoCalculado),
         data_venda: new Date().toISOString(),
         status: "finalizada",
-        os_id: osVinculada?.id || null,
-        os_codigo: osVinculada?.codigo_os || null
+        // Campos de OS: só incluídos quando há uma OS vinculada para evitar erro PGRST204
+        ...(osVinculada ? { os_id: osVinculada.id } : {}),
       };
 
       // Se tem cupom aplicado, incrementar uso_atual após a venda

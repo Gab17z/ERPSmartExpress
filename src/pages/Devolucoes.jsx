@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -69,7 +70,7 @@ export default function Devolucoes() {
         codigo_devolucao: codigo,
         data_solicitacao: new Date().toISOString(),
         status: "pendente",
-        responsavel: user?.full_name
+        responsavel: user?.nome
       });
 
       return devolucao;
@@ -104,7 +105,7 @@ export default function Devolucoes() {
             estoque_novo: novoEstoque,
             motivo: "Devolução",
             documento_referencia: devolucao.codigo_devolucao,
-            usuario_responsavel: user?.full_name,
+            usuario_responsavel: user?.nome,
             data_movimentacao: new Date().toISOString()
           });
         }

@@ -269,7 +269,7 @@ export default function AvaliacaoSeminovo() {
         valor_mercado: valorMercado,
         valor_oferecido: Math.round(valorOferecido * 100) / 100,
         justificativa: justificativa,
-        avaliador_nome: user?.full_name || null,
+        avaliador_nome: user?.nome || null,
         // avaliador_id removido - FK referencia tabela usuario que pode estar vazia
         data_avaliacao: new Date().toISOString(),
         status: "concluida"
