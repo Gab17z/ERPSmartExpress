@@ -84,7 +84,7 @@ const navigationItems = [
     title: "Caixa",
     url: createPageUrl("Caixa"),
     icon: Wallet,
-    permissions: ["gerenciar_caixa"],
+    permissions: ["gerenciar_caixa", "abrir_fechar_caixa"],
     submenu: [
       { title: "Gerenciar Caixa", url: createPageUrl("Caixa") },
       { title: "Calculadora de Pagamentos", url: createPageUrl("CalculadoraPagamentos") },
