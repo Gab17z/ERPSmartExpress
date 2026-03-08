@@ -1256,7 +1256,9 @@ export default function Produtos() {
                     <SelectValue placeholder="Selecione uma categoria" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categorias.filter(c => c.ativo).map(cat => (
+                    {categorias.filter(c => c.ativo)
+                      .filter((cat, idx, self) => self.findIndex(c => c.nome.toLowerCase() === cat.nome.toLowerCase()) === idx)
+                      .map(cat => (
                       <SelectItem key={cat.id} value={cat.nome.toLowerCase().replace(/\s+/g, '_')}>
                         {cat.nome}
                       </SelectItem>
