@@ -750,7 +750,7 @@ export default function Configuracoes() {
       try {
         await base44.entities.LogAuditoria.create({
           usuario_id: user?.id || 'sistema',
-          usuario_nome: user?.full_name || 'Sistema',
+          usuario_nome: user?.nome || 'Sistema',
           acao: 'criar',
           recurso: 'Cargo',
           recurso_id: novoCargo.id,
@@ -783,7 +783,7 @@ export default function Configuracoes() {
         const cargoAnterior = cargos.find(c => c.id === id);
         await base44.entities.LogAuditoria.create({
           usuario_id: user?.id || 'sistema',
-          usuario_nome: user?.full_name || 'Sistema',
+          usuario_nome: user?.nome || 'Sistema',
           acao: 'editar',
           recurso: 'Cargo',
           recurso_id: id,
@@ -889,7 +889,7 @@ export default function Configuracoes() {
       try {
         await base44.entities.LogAuditoria.create({
           usuario_id: user?.id || 'sistema',
-          usuario_nome: user?.full_name || 'Sistema',
+          usuario_nome: user?.nome || 'Sistema',
           acao: 'editar',
           recurso: 'Configuracao',
           recurso_id: 'sistema_geral',

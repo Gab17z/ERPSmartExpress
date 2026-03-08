@@ -1410,7 +1410,7 @@ export default function AdmWhatsApp() {
     historico.push({
       de_setor: conversaSelecionada.setor || "geral",
       para_setor: transferencia.setor,
-      de_atendente: conversaSelecionada.atendente || user?.full_name,
+      de_atendente: conversaSelecionada.atendente || user?.nome,
       data: new Date().toISOString(),
       motivo: transferencia.motivo
     });

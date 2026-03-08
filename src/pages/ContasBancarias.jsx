@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -121,7 +122,7 @@ export default function ContasBancarias() {
         conta_destino_nome: contaDestino.nome,
         valor: valor,
         data_transferencia: new Date().toISOString(),
-        responsavel: user?.full_name
+        responsavel: user?.nome
       });
     },
     onSuccess: () => {

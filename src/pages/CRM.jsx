@@ -67,13 +67,13 @@ export default function CRM() {
     mutationFn: (data) => base44.entities.LeadCRM.create({
       ...data,
       data_primeiro_contato: new Date().toISOString(),
-      responsavel: user?.full_name,
+      responsavel: user?.nome,
       responsavel_id: user?.id,
       historico: [{
         data: new Date().toISOString(),
         acao: "criacao",
         descricao: "Lead criado no sistema",
-        usuario: user?.full_name
+        usuario: user?.nome
       }]
     }),
     onSuccess: () => {
@@ -139,7 +139,7 @@ export default function CRM() {
             data: new Date().toISOString(),
             acao: "mudanca_status",
             descricao: `Status alterado para: ${LABELS_STATUS[novoStatus]}`,
-            usuario: user?.full_name || "Sistema"
+            usuario: user?.nome || "Sistema"
           }
         ]
       }

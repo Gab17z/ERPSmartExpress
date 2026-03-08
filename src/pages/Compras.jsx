@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -121,7 +122,7 @@ export default function Compras() {
             estoque_novo: item.quantidade,
             motivo: "Compra de fornecedor - Produto novo cadastrado",
             documento_referencia: numeroCompra,
-            usuario_responsavel: user?.full_name,
+            usuario_responsavel: user?.nome,
             data_movimentacao: new Date().toISOString()
           });
 
@@ -147,7 +148,7 @@ export default function Compras() {
               estoque_novo: novoEstoque,
               motivo: "Compra de fornecedor",
               documento_referencia: numeroCompra,
-              usuario_responsavel: user?.full_name,
+              usuario_responsavel: user?.nome,
               data_movimentacao: new Date().toISOString()
             });
           }
