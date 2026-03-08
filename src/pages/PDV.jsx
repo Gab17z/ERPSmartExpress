@@ -92,6 +92,9 @@ export default function PDV() {
   const [isSubmitting, setIsSubmitting] = useState(false); // CORREÇÃO: Mutex para evitar venda duplicada
   const [osVinculada, setOsVinculada] = useState(null); // OS vinculada à venda (quando faturando OS)
 
+  // Estado de busca no dialog de cliente
+  const [buscaClientePDV, setBuscaClientePDV] = useState("");
+
   // Estados para cupom de desconto
   const [cupomAplicado, setCupomAplicado] = useState(null);
   const [dialogCupom, setDialogCupom] = useState(false);
@@ -114,9 +117,10 @@ export default function PDV() {
     },
   });
 
-  const { data: clientes = [] } = useQuery({
+  const { data: clientes = [], refetch: refetchClientes } = useQuery({
     queryKey: ['clientes'],
     queryFn: () => base44.entities.Cliente.list('nome_completo'),
+    staleTime: 0, // Sempre considera os dados desatualizados para buscar frescos
   });
 
   const { data: caixas = [] } = useQuery({
@@ -1477,7 +1481,7 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
         </div>
       </div>
 
-      <Dialog open={dialogCliente} onOpenChange={setDialogCliente}>
+      <Dialog open={dialogCliente} onOpenChange={(open) => { setDialogCliente(open); if (open) refetchClientes(); if (!open) setBuscaClientePDV(""); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Selecionar Cliente</DialogTitle>
@@ -1485,18 +1489,10 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
           <div className="space-y-3">
             <div className="sticky top-0 bg-white z-10 pb-3 space-y-2">
               <Input
-                placeholder="Buscar cliente por nome ou telefone..."
-                onChange={(e) => {
-                  const termo = e.target.value.toLowerCase();
-                  const el = document.getElementById('lista-clientes-pdv');
-                  if (el) {
-                    const btns = el.querySelectorAll('button[data-cliente]');
-                    btns.forEach(btn => {
-                      const texto = btn.getAttribute('data-cliente').toLowerCase();
-                      btn.style.display = texto.includes(termo) ? '' : 'none';
-                    });
-                  }
-                }}
+                placeholder="Buscar cliente por nome, telefone ou CPF..."
+                value={buscaClientePDV}
+                onChange={(e) => setBuscaClientePDV(e.target.value)}
+                autoFocus
                 className="w-full"
               />
               <Button
@@ -1504,6 +1500,7 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
                 className="w-full justify-start"
                 onClick={() => {
                   setClienteSelecionado(null);
+                  setBuscaClientePDV("");
                   setDialogCliente(false);
                 }}
               >
@@ -1513,6 +1510,7 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
               <Button
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 onClick={() => {
+                  setBuscaClientePDV("");
                   setDialogCliente(false);
                   setDialogNovoCliente(true);
                 }}
@@ -1522,24 +1520,51 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
               </Button>
             </div>
 
-            <div id="lista-clientes-pdv" className="space-y-2 max-h-96 overflow-y-auto">
-              {clientes.filter(c => c.ativo !== false).map((cliente) => (
-                <Button
-                  key={cliente.id}
-                  data-cliente={`${cliente.nome_completo} ${cliente.telefone1}`}
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={() => {
-                    setClienteSelecionado(cliente);
-                    setDialogCliente(false);
-                  }}
-                >
-                  <div className="text-left">
-                    <div className="font-semibold">{cliente.nome_completo}</div>
-                    <div className="text-sm text-slate-500">{cliente.telefone1}</div>
-                  </div>
-                </Button>
-              ))}
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {clientes
+                .filter(c => c.ativo !== false)
+                .filter(c => {
+                  if (!buscaClientePDV) return true;
+                  const termo = buscaClientePDV.toLowerCase();
+                  return (
+                    (c.nome_completo || "").toLowerCase().includes(termo) ||
+                    (c.telefone1 || "").toLowerCase().includes(termo) ||
+                    (c.telefone2 || "").toLowerCase().includes(termo) ||
+                    (c.cpf || "").toLowerCase().includes(termo) ||
+                    (c.email || "").toLowerCase().includes(termo)
+                  );
+                })
+                .map((cliente) => (
+                  <Button
+                    key={cliente.id}
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setClienteSelecionado(cliente);
+                      setBuscaClientePDV("");
+                      setDialogCliente(false);
+                    }}
+                  >
+                    <div className="text-left">
+                      <div className="font-semibold">{cliente.nome_completo}</div>
+                      <div className="text-sm text-slate-500">{cliente.telefone1 || cliente.email || ""}</div>
+                    </div>
+                  </Button>
+                ))
+              }
+              {clientes.filter(c => c.ativo !== false).filter(c => {
+                if (!buscaClientePDV) return false;
+                const termo = buscaClientePDV.toLowerCase();
+                return (
+                  (c.nome_completo || "").toLowerCase().includes(termo) ||
+                  (c.telefone1 || "").toLowerCase().includes(termo) ||
+                  (c.telefone2 || "").toLowerCase().includes(termo) ||
+                  (c.cpf || "").toLowerCase().includes(termo) ||
+                  (c.email || "").toLowerCase().includes(termo)
+                );
+              }).length === 0 && buscaClientePDV && (
+                  <p className="text-center text-slate-400 text-sm py-4">Nenhum cliente encontrado para "{buscaClientePDV}"</p>
+                )}
             </div>
           </div>
         </DialogContent>
