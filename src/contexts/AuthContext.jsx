@@ -6,6 +6,16 @@ const AuthContext = createContext(null);
 // Chave para armazenar sessão no localStorage
 const SESSION_KEY = 'smartexpress_user_session';
 
+// SEGURANÇA: Remove campos sensíveis antes de armazenar/expor
+function sanitizeUser(obj) {
+  if (!obj) return obj;
+  const { senha, password, ...safe } = obj;
+  return safe;
+}
+
+// Colunas seguras da tabela usuario (SEM a coluna senha)
+const USUARIO_SAFE_COLUMNS = "id, nome, email, telefone, ativo, created_date, updated_date, foto_url";
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -17,9 +27,14 @@ export function AuthProvider({ children }) {
         const savedSession = localStorage.getItem(SESSION_KEY);
         if (savedSession) {
           const userData = JSON.parse(savedSession);
-          // Verificar se o usuário ainda existe no banco
-          const usuarioAtual = await entities.Usuario.get(userData.id);
-          if (usuarioAtual && usuarioAtual.ativo !== false) {
+          // Verificar se o usuário ainda existe no banco (sem trazer senha)
+          const { data: usuarioAtual, error } = await supabase
+            .from('usuario')
+            .select(USUARIO_SAFE_COLUMNS)
+            .eq('id', userData.id)
+            .maybeSingle();
+
+          if (!error && usuarioAtual && usuarioAtual.ativo !== false) {
             // Buscar dados do UsuarioSistema (cargo, permissões)
             const { data: usuarioSistema } = await supabase
               .from('usuario_sistema')
@@ -28,14 +43,14 @@ export function AuthProvider({ children }) {
               .limit(1);
 
             // Montar objeto do usuário com permissões
-            const userWithPermissions = {
+            const userWithPermissions = sanitizeUser({
               ...usuarioAtual,
               usuarioSistema: usuarioSistema?.[0] || null,
               cargo: usuarioSistema?.[0]?.cargo || null,
               permissoes: usuarioSistema?.[0]?.cargo?.permissoes || {}
-            };
+            });
 
-            // Atualizar sessão com dados completos
+            // Atualizar sessão com dados completos (sem senha)
             localStorage.setItem(SESSION_KEY, JSON.stringify(userWithPermissions));
             setUser(userWithPermissions);
           } else {
@@ -43,8 +58,7 @@ export function AuthProvider({ children }) {
             setUser(null);
           }
         }
-      } catch (error) {
-        console.error('Erro ao verificar sessão:', error);
+      } catch {
         localStorage.removeItem(SESSION_KEY);
         setUser(null);
       } finally {
@@ -60,10 +74,10 @@ export function AuthProvider({ children }) {
       throw new Error('Sistema indisponível. Verifique a configuração do servidor.');
     }
 
-    // Buscar usuário pelo email na tabela usuario
+    // Buscar usuário pelo email (precisa da senha APENAS para validar login)
     const { data: usuarios, error } = await supabase
       .from('usuario')
-      .select('*')
+      .select(`${USUARIO_SAFE_COLUMNS},senha`)
       .eq('email', email.toLowerCase().trim())
       .eq('ativo', true)
       .limit(1);
@@ -81,22 +95,25 @@ export function AuthProvider({ children }) {
       throw new Error('Senha incorreta');
     }
 
+    // SEGURANÇA: Remover senha do objeto IMEDIATAMENTE após validação
+    const usuarioSeguro = sanitizeUser(usuario);
+
     // Buscar dados do UsuarioSistema (cargo, permissões)
     const { data: usuarioSistema } = await supabase
       .from('usuario_sistema')
       .select('*, cargo:cargo_id(*)')
-      .eq('user_id', usuario.id)
+      .eq('user_id', usuarioSeguro.id)
       .limit(1);
 
-    // Montar objeto do usuário com permissões
+    // Montar objeto do usuário com permissões (sem senha)
     const userWithPermissions = {
-      ...usuario,
+      ...usuarioSeguro,
       usuarioSistema: usuarioSistema?.[0] || null,
       cargo: usuarioSistema?.[0]?.cargo || null,
       permissoes: usuarioSistema?.[0]?.cargo?.permissoes || {}
     };
 
-    // Salvar sessão no localStorage
+    // Salvar sessão no localStorage (sem senha)
     localStorage.setItem(SESSION_KEY, JSON.stringify(userWithPermissions));
     setUser(userWithPermissions);
 

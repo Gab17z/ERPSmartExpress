@@ -53,15 +53,13 @@ import { ptBR } from "date-fns/locale";
 
 export default function MeuPerfil() {
   const { user: authUser, logout } = useAuth();
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("perfil");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
-    full_name: '',
+    nome: '',
     telefone: '',
     avatar_url: ''
   });
@@ -87,46 +85,37 @@ export default function MeuPerfil() {
   });
 
   useEffect(() => {
-    loadUserData();
-  }, []);
-
-  const loadUserData = async () => {
-    try {
-      setLoading(true);
-      const currentUser = await base44.auth.me();
-      setUser(currentUser);
+    if (authUser) {
       setFormData({
-        full_name: currentUser?.full_name || currentUser?.email?.split('@')[0] || '',
-        telefone: currentUser?.telefone || '',
-        avatar_url: currentUser?.avatar_url || ''
+        nome: authUser?.nome || '',
+        telefone: authUser?.telefone || '',
+        avatar_url: authUser?.avatar_url || ''
       });
-
-      // Load preferences from localStorage
-      const savedPrefs = localStorage.getItem('user_preferences');
-      if (savedPrefs) {
-        setPreferencias(JSON.parse(savedPrefs));
-      }
-    } catch (error) {
-      console.error("Erro ao carregar dados do usuario:", error);
-      toast.error("Erro ao carregar dados do perfil");
-    } finally {
-      setLoading(false);
     }
-  };
+
+    // Load preferences from localStorage
+    const savedPrefs = localStorage.getItem('user_preferences');
+    if (savedPrefs) {
+      try {
+        setPreferencias(JSON.parse(savedPrefs));
+      } catch (e) {
+        console.error("Erro ao carregar preferências:", e);
+      }
+    }
+  }, [authUser]);
 
   const handleSaveProfile = async () => {
     try {
       setSaving(true);
 
-      // Update user profile via Supabase
-      await base44.auth.updateProfile({
-        full_name: formData.full_name,
+      // Update user profile via Usuario entity
+      await base44.entities.Usuario.update(authUser.id, {
+        nome: formData.nome,
         telefone: formData.telefone,
         avatar_url: formData.avatar_url
       });
 
       toast.success("Perfil atualizado com sucesso!");
-      loadUserData();
     } catch (error) {
       console.error("Erro ao salvar perfil:", error);
       toast.error(error.message || "Erro ao salvar perfil");
@@ -148,7 +137,7 @@ export default function MeuPerfil() {
 
     try {
       setChangingPassword(true);
-      await base44.auth.changePassword(senhaData.novaSenha);
+      await base44.entities.Usuario.update(authUser.id, { senha: senhaData.novaSenha });
       toast.success("Senha alterada com sucesso!");
       setDialogSenha(false);
       setSenhaData({ senhaAtual: '', novaSenha: '', confirmarSenha: '' });
@@ -196,7 +185,7 @@ export default function MeuPerfil() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  if (loading) {
+  if (!authUser) {
     return (
       <div className="flex items-center justify-center h-64">
         <RefreshCw className="w-8 h-8 animate-spin text-blue-500" />
@@ -225,18 +214,18 @@ export default function MeuPerfil() {
             <Avatar className="w-24 h-24">
               <AvatarImage src={formData.avatar_url} />
               <AvatarFallback className="text-2xl bg-blue-100 text-blue-600">
-                {getInitials(formData.full_name || user?.email)}
+                {getInitials(formData.nome || authUser?.email)}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <h2 className="text-2xl font-bold">{formData.full_name || 'Usuario'}</h2>
-              <p className="text-gray-500">{user?.email || authUser?.email}</p>
+              <h2 className="text-2xl font-bold">{formData.nome || 'Usuario'}</h2>
+              <p className="text-gray-500">{authUser?.email}</p>
               <div className="flex items-center gap-2 mt-2">
                 <Badge variant="outline" className="bg-green-50 text-green-700">
                   <CheckCircle className="w-3 h-3 mr-1" />
                   Conta ativa
                 </Badge>
-                {user?.role === 'admin' && (
+                {authUser?.permissoes?.administrador_sistema && (
                   <Badge variant="outline" className="bg-purple-50 text-purple-700">
                     <Shield className="w-3 h-3 mr-1" />
                     Administrador
@@ -275,13 +264,13 @@ export default function MeuPerfil() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="full_name">Nome Completo</Label>
+                  <Label htmlFor="nome">Nome Completo</Label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
-                      id="full_name"
-                      value={formData.full_name}
-                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                      id="nome"
+                      value={formData.nome}
+                      onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                       className="pl-10"
                       placeholder="Seu nome completo"
                     />
@@ -294,7 +283,7 @@ export default function MeuPerfil() {
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
                       id="email"
-                      value={user?.email || authUser?.email || ''}
+                      value={authUser?.email || ''}
                       disabled
                       className="pl-10 bg-gray-50"
                     />
@@ -322,7 +311,7 @@ export default function MeuPerfil() {
                     <Avatar className="w-16 h-16">
                       <AvatarImage src={formData.avatar_url} />
                       <AvatarFallback className="text-lg bg-blue-100 text-blue-600">
-                        {getInitials(formData.full_name || user?.email)}
+                        {getInitials(formData.nome || authUser?.email)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">

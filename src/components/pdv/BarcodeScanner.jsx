@@ -130,7 +130,6 @@ export default function BarcodeScanner({ open, onClose, onDetected }) {
         window.Quagga.stop();
       }
     } catch (e) {
-      console.log("Erro ao parar Quagga:", e);
     }
     
     setScanning(false);

@@ -143,9 +143,9 @@ export default function Comissoes() {
         format(new Date(c.created_date), 'dd/MM/yyyy'),
         getCodigoVenda(c.venda_id),
         c.vendedor_nome,
-        c.valor_venda.toFixed(2),
+        (parseFloat(c.valor_venda) || 0).toFixed(2),
         c.percentual,
-        c.valor_comissao.toFixed(2),
+        (parseFloat(c.valor_comissao) || 0).toFixed(2),
         c.status,
         c.data_pagamento ? format(new Date(c.data_pagamento), 'dd/MM/yyyy') : '-'
       ].join(','))
@@ -224,7 +224,7 @@ export default function Comissoes() {
                   <SelectItem value="todos">Todos os Vendedores</SelectItem>
                   {porVendedor.map((v, idx) => (
                     <SelectItem key={idx} value={usuariosSistema.find(u => u.nome === v.nome)?.user_id || idx}>
-                      {v.nome} - R$ {v.total_comissao.toFixed(2)}
+                      {v.nome} - R$ {(parseFloat(v.total_comissao) || 0).toFixed(2)}
                     </SelectItem>
                   ))}
                 </SelectContent>

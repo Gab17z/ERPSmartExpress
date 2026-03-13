@@ -18,10 +18,10 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 
 export default function Compras() {
+  const { user } = useAuth();
   const [dialogCompra, setDialogCompra] = useState(false);
   const [dialogProduto, setDialogProduto] = useState(false);
   const [uploadingPDF, setUploadingPDF] = useState(false);
-  const [user, setUser] = useState(null);
   const [fornecedorOpen, setFornecedorOpen] = useState(false);
   const [produtoOpen, setProdutoOpen] = useState(false);
   const [buscaProduto, setBuscaProduto] = useState("");
@@ -37,14 +37,6 @@ export default function Compras() {
   });
 
   const queryClient = useQueryClient();
-
-  React.useEffect(() => {
-    const loadUser = async () => {
-      const currentUser = await base44.auth.me();
-      setUser(currentUser);
-    };
-    loadUser();
-  }, []);
 
   const { data: compras = [] } = useQuery({
     queryKey: ['compras'],
@@ -70,7 +62,6 @@ export default function Compras() {
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      console.log('🔍 Iniciando createMutation com data:', data);
       
       const proximoNumero = compras.length + 1;
       const numeroCompra = `CMP-${proximoNumero.toString().padStart(5, '0')}`;
@@ -81,7 +72,6 @@ export default function Compras() {
         let produtoId = item.produto_id;
         let produtoNome = item.produto_nome;
 
-        console.log('📦 Processando item:', item);
 
         // Se for um produto novo (não identificado)
         if (item.produto_id.startsWith('temp_')) {
@@ -464,7 +454,7 @@ export default function Compras() {
                   <TableCell>{compra.nota_fiscal || "-"}</TableCell>
                   <TableCell>{compra.data_compra ? format(new Date(compra.data_compra), 'dd/MM/yyyy') : '-'}</TableCell>
                   <TableCell>{compra.itens?.length || 0} produto(s)</TableCell>
-                  <TableCell className="font-bold text-blue-600">R$ {(compra.total || 0).toFixed(2)}</TableCell>
+                  <TableCell className="font-bold text-blue-600">R$ {(parseFloat(compra.total) || 0).toFixed(2)}</TableCell>
                   <TableCell>
                     <Badge variant={compra.status === "entregue" ? "default" : "secondary"}>
                       {compra.status}
@@ -669,7 +659,7 @@ export default function Compras() {
                             className="w-28"
                           />
                         </TableCell>
-                        <TableCell className="font-bold">R$ {item.subtotal.toFixed(2)}</TableCell>
+                        <TableCell className="font-bold">R$ {(parseFloat(item.subtotal) || 0).toFixed(2)}</TableCell>
                         <TableCell>
                           <Button size="sm" variant="ghost" onClick={() => removerItem(item.produto_id)}>
                             <Trash2 className="w-3 h-3 text-red-600" />

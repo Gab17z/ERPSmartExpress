@@ -14,10 +14,10 @@ import { Plus, Edit, ArrowLeftRight, Landmark } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ContasBancarias() {
+  const { user } = useAuth();
   const [dialogConta, setDialogConta] = useState(false);
   const [dialogTransferencia, setDialogTransferencia] = useState(false);
   const [editingConta, setEditingConta] = useState(null);
-  const [user, setUser] = useState(null);
   
   const [formData, setFormData] = useState({
     nome: "",
@@ -38,14 +38,6 @@ export default function ContasBancarias() {
   });
 
   const queryClient = useQueryClient();
-
-  React.useEffect(() => {
-    const loadUser = async () => {
-      const currentUser = await base44.auth.me();
-      setUser(currentUser);
-    };
-    loadUser();
-  }, []);
 
   const { data: contas = [] } = useQuery({
     queryKey: ['contas-bancarias'],
@@ -230,7 +222,7 @@ export default function ContasBancarias() {
                 </div>
                 <div className="pt-3 border-t">
                   <p className="text-sm text-slate-500">Saldo Atual</p>
-                  <p className="text-2xl font-bold text-green-600">R$ {conta.saldo_atual?.toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-green-600">R$ {(parseFloat(conta.saldo_atual) || 0).toFixed(2)}</p>
                 </div>
               </div>
             </CardContent>

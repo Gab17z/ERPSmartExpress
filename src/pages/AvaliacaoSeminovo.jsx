@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -71,13 +72,13 @@ const CAPACIDADES_DISPONIVEIS = [
 ];
 
 export default function AvaliacaoSeminovo() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [dialogAvaliacao, setDialogAvaliacao] = useState(false);
   const [dialogResultado, setDialogResultado] = useState(false);
   const [dialogNovoCliente, setDialogNovoCliente] = useState(false);
   const [activeTab, setActiveTab] = useState("dados-aparelho"); // Replaced etapaAtual with activeTab
   const [avaliacaoAtual, setAvaliacaoAtual] = useState(null);
-  const [user, setUser] = useState(null);
   const [clientePopoverOpen, setClientePopoverOpen] = useState(false);
 
   const [novoClienteData, setNovoClienteData] = useState({
@@ -168,14 +169,6 @@ export default function AvaliacaoSeminovo() {
     queryKey: ['clientes'],
     queryFn: () => base44.entities.Cliente.list('nome_completo'),
   });
-
-  React.useEffect(() => {
-    const loadUser = async () => {
-      const currentUser = await base44.auth.me();
-      setUser(currentUser);
-    };
-    loadUser();
-  }, []);
 
   const criarClienteMutation = useMutation({
     mutationFn: (data) => base44.entities.Cliente.create({
@@ -547,7 +540,7 @@ export default function AvaliacaoSeminovo() {
                       </div>
                     </TableCell>
                     <TableCell className="font-bold text-green-600">
-                      R$ {avaliacao.valor_oferecido?.toFixed(2)}
+                      R$ {(parseFloat(avaliacao.valor_oferecido) || 0).toFixed(2)}
                     </TableCell>
                     <TableCell>
                       <Badge variant={avaliacao.status === 'aceita' ? 'default' : 'secondary'}>
@@ -1293,7 +1286,7 @@ export default function AvaliacaoSeminovo() {
                   <CardContent className="pt-6">
                     <p className="text-sm text-slate-600">Valor de Mercado</p>
                     <p className="text-2xl font-bold text-slate-900">
-                      R$ {avaliacaoAtual.valor_mercado?.toFixed(2)}
+                      R$ {(parseFloat(avaliacaoAtual.valor_mercado) || 0).toFixed(2)}
                     </p>
                   </CardContent>
                 </Card>
@@ -1301,7 +1294,7 @@ export default function AvaliacaoSeminovo() {
                   <CardContent className="pt-6">
                     <p className="text-sm text-slate-600">Valor Oferecido</p>
                     <p className="text-2xl font-bold text-green-600">
-                      R$ {avaliacaoAtual.valor_oferecido?.toFixed(2)}
+                      R$ {(parseFloat(avaliacaoAtual.valor_oferecido) || 0).toFixed(2)}
                     </p>
                   </CardContent>
                 </Card>

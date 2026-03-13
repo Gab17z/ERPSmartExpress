@@ -46,7 +46,6 @@ export default function Aniversarios() {
 
           // Validar se a data é válida
           if (!isValid(dataNascimento)) {
-            console.warn(`Data inválida para cliente ${cliente.nome_completo}:`, cliente.data_nascimento);
             return null;
           }
 

@@ -150,7 +150,6 @@ export default function Etiquetas() {
       const config = localStorage.getItem('configuracoes_erp');
       if (config) {
         const parsed = JSON.parse(config);
-        console.log("Config empresa:", parsed.empresa);
         return parsed.empresa?.logo_url || null;
       }
     } catch (e) {
@@ -161,7 +160,6 @@ export default function Etiquetas() {
 
   const usarLogoEmpresa = () => {
     const logoEmpresa = getLogoEmpresa();
-    console.log("Logo empresa encontrada:", logoEmpresa);
     if (logoEmpresa) {
       setDisplayData(prev => ({ ...prev, logoUrl: logoEmpresa }));
       toast.success("Logo da empresa carregada!");

@@ -5,7 +5,6 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('ERRO CRÍTICO: Variáveis de ambiente do Supabase não encontradas!');
-  console.log('Verifique se VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY estão configuradas no Vercel.');
 }
 
 export const supabase = (supabaseUrl && supabaseAnonKey)
@@ -47,6 +46,18 @@ function parseEntityData(data) {
     return result;
   }
   return data;
+}
+
+// SEGURANÇA: Campos sensíveis que nunca devem ser retornados ao frontend
+const SENSITIVE_COLUMNS = { usuario: ['senha'] };
+
+function stripSensitive(tableName, data) {
+  const cols = SENSITIVE_COLUMNS[tableName];
+  if (!cols || !data) return data;
+  if (Array.isArray(data)) return data.map(row => stripSensitive(tableName, row));
+  const clean = { ...data };
+  for (const col of cols) delete clean[col];
+  return clean;
 }
 
 // Classe que simula a interface de entidade do Base44
@@ -91,7 +102,7 @@ class Entity {
       let query = buildBaseQuery().limit(targetLimit);
       const { data, error } = await query;
       if (error) throw error;
-      return parseEntityData(data || []);
+      return stripSensitive(this.tableName, parseEntityData(data || []));
     }
 
     // Caso contrário (sem limite ou limite > 1000), usar paginação para buscar tudo
@@ -126,7 +137,7 @@ class Entity {
       allData = allData.slice(0, targetLimit);
     }
 
-    return parseEntityData(allData);
+    return stripSensitive(this.tableName, parseEntityData(allData));
   }
 
   async filter(filters, options = {}) {
@@ -141,7 +152,7 @@ class Entity {
       .maybeSingle();
 
     if (error) throw error;
-    return parseEntityData(data);
+    return stripSensitive(this.tableName, parseEntityData(data));
   }
 
   async create(record) {
@@ -152,7 +163,7 @@ class Entity {
       .single();
 
     if (error) throw error;
-    return parseEntityData(data);
+    return stripSensitive(this.tableName, parseEntityData(data));
   }
 
   async update(id, updates) {
@@ -164,7 +175,7 @@ class Entity {
       .single();
 
     if (error) throw error;
-    return parseEntityData(data);
+    return stripSensitive(this.tableName, parseEntityData(data));
   }
 
   async delete(id) {

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -73,7 +74,7 @@ export default function Clientes() {
     observacoes: ""
   });
 
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const [configuracoes, setConfiguracoes] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLockRef = useRef(false);
@@ -103,15 +104,6 @@ export default function Clientes() {
   }, [searchParams, setSearchParams]);
 
   React.useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const currentUser = await base44.auth.me();
-        setUser(currentUser);
-      } catch (error) {
-        console.error("Erro ao carregar usuário:", error);
-      }
-    };
-    
     const configSalva = localStorage.getItem('configuracoes_erp');
     if (configSalva) {
       try {
@@ -120,8 +112,6 @@ export default function Clientes() {
         console.error("Erro ao carregar configurações:", error);
       }
     }
-    
-    loadUser();
   }, []);
 
   const { data: clientes = [], isLoading } = useQuery({

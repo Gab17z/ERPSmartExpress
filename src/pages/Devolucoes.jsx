@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -16,10 +16,10 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 
 export default function Devolucoes() {
+  const { user } = useAuth();
   const [dialogDevolucao, setDialogDevolucao] = useState(false);
   const [dialogVenda, setDialogVenda] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [user, setUser] = useState(null);
   
   const [formData, setFormData] = useState({
     venda_id: "",
@@ -34,14 +34,6 @@ export default function Devolucoes() {
   });
 
   const queryClient = useQueryClient();
-
-  React.useEffect(() => {
-    const loadUser = async () => {
-      const currentUser = await base44.auth.me();
-      setUser(currentUser);
-    };
-    loadUser();
-  }, []);
 
   const { data: devolucoes = [] } = useQuery({
     queryKey: ['devolucoes'],
@@ -158,7 +150,7 @@ export default function Devolucoes() {
       venda_id: venda.id,
       codigo_venda: venda.codigo_venda,
       cliente_nome: venda.cliente_nome,
-      itens_devolvidos: venda.itens.map(item => ({
+      itens_devolvidos: (venda.itens || []).map(item => ({
         ...item,
         motivo: "",
         valor_reembolso: item.subtotal
@@ -235,7 +227,7 @@ export default function Devolucoes() {
                     </Badge>
                   </TableCell>
                   <TableCell>{dev.itens_devolvidos?.length || 0}</TableCell>
-                  <TableCell className="font-bold text-orange-600">R$ {dev.valor_total_reembolso?.toFixed(2)}</TableCell>
+                  <TableCell className="font-bold text-orange-600">R$ {(parseFloat(dev.valor_total_reembolso) || 0).toFixed(2)}</TableCell>
                   <TableCell>
                     <Badge variant={dev.status === "aprovada" ? "default" : dev.status === "pendente" ? "secondary" : "destructive"}>
                       {dev.status}
@@ -328,7 +320,7 @@ export default function Devolucoes() {
                         </TableCell>
                         <TableCell className="font-medium">{item.produto_nome}</TableCell>
                         <TableCell>{item.quantidade}</TableCell>
-                        <TableCell>R$ {(item.preco_unitario || 0).toFixed(2)}</TableCell>
+                        <TableCell>R$ {(parseFloat(item.preco_unitario) || 0).toFixed(2)}</TableCell>
                         <TableCell>
                           <Input
                             type="number"

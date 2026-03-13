@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -279,13 +280,13 @@ const configuracoesDefault = {
 };
 
 export default function Configuracoes() {
+  const { user } = useAuth();
   const confirm = useConfirm();
   const queryClient = useQueryClient();
   const [uploading, setUploading] = useState(false);
   const [salvando, setSalvando] = useState(false); // Used for main save button
   // Initialize state with the default configuration object
   const [configuracoes, setConfiguracoes] = useState(configuracoesDefault);
-  const [user, setUser] = useState(null);
 
   // Estados para gerenciamento de usuários e cargos
   const [dialogCargo, setDialogCargo] = useState(false);
@@ -758,7 +759,6 @@ export default function Configuracoes() {
           dados_depois: data,
           data_hora: new Date().toISOString()
         });
-        console.log('✅ Log de auditoria registrado para novo cargo');
       } catch (logError) {
         console.error('❌ Erro ao registrar log de cargo:', logError);
       }
@@ -792,7 +792,6 @@ export default function Configuracoes() {
           dados_depois: data,
           data_hora: new Date().toISOString()
         });
-        console.log('✅ Log de auditoria registrado para cargo');
       } catch (logError) {
         console.error('❌ Erro ao registrar log de cargo:', logError);
       }
@@ -897,7 +896,6 @@ export default function Configuracoes() {
           dados_depois: configuracoes,
           data_hora: new Date().toISOString()
         });
-        console.log('✅ Log de auditoria registrado para configurações');
       } catch (logError) {
         console.error('❌ Erro ao registrar log de configurações:', logError);
       }
@@ -945,9 +943,7 @@ export default function Configuracoes() {
     setUploading(true);
     try {
       const uploadResult = await base44.integrations.Core.UploadFile({ file });
-      console.log('UPLOAD RESULTADO COMPLETO:', uploadResult);
       const url = uploadResult.url || uploadResult.file_url;
-      console.log('URL EXTRAÍDA:', url);
 
       if (!url) {
         toast.error("Servidor não retornou link válido da Imagem.");
@@ -983,7 +979,6 @@ export default function Configuracoes() {
             valor: novasConfigs
           });
         }
-        console.log('✅ Logo salva no banco de dados');
       } catch (dbError) {
         console.error('❌ Erro ao salvar logo no banco:', dbError);
       }
@@ -1185,7 +1180,6 @@ export default function Configuracoes() {
             const dados = await base44.entities[tabela.entidade].list();
             backup.dados[tabela.nome] = dados || [];
           } catch (error) {
-            console.warn(`Erro ao exportar ${tabela.nome}:`, error);
             backup.dados[tabela.nome] = [];
           }
         }
@@ -1298,12 +1292,10 @@ export default function Configuracoes() {
                   }
                   restaurados++;
                 } catch (err) {
-                  console.warn(`Erro ao restaurar registro em ${tabela.nome}:`, err);
                   erros++;
                 }
               }
             } catch (error) {
-              console.warn(`Erro ao restaurar ${tabela.nome}:`, error);
               erros++;
             }
           }
@@ -1338,16 +1330,6 @@ export default function Configuracoes() {
 
 
   React.useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const currentUser = await base44.auth.me();
-        setUser(currentUser);
-      } catch (error) {
-        console.error("Erro ao carregar usuário:", error);
-      }
-    };
-    loadUser();
-
     // CRÍTICO: Carregar configurações do banco de dados primeiro (prioridade)
     const loadConfiguracoes = async () => {
       try {
@@ -1385,7 +1367,6 @@ export default function Configuracoes() {
           if (parsed.template_os) {
             setTemplateOS(parsed.template_os);
           }
-          console.log('✅ Configurações carregadas do banco de dados');
           return;
         }
       } catch (error) {
@@ -1700,7 +1681,6 @@ export default function Configuracoes() {
           valor: novasConfigs
         });
       }
-      console.log('✅ Template de OS salvo no banco de dados');
       toast.success("Template de OS salvo com sucesso!");
     } catch (error) {
       console.error('❌ Erro ao salvar template no banco:', error);

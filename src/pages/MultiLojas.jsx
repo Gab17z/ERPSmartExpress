@@ -10,7 +10,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Store, Plus, Edit, Trash2, MapPin, BarChart3, Package as PackageIcon, TrendingUp } from "lucide-react";
-import { toast } from "sonner";
 import SeletorLojaAtiva from "@/components/multilojas/SeletorLojaAtiva";
 import DashboardLoja from "@/components/multilojas/DashboardLoja";
 import EstoquePorLoja from "@/components/multilojas/EstoquePorLoja";

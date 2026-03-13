@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -25,11 +26,11 @@ const CAPACIDADES_DISPONIVEIS = [
 const OPERADORAS = ["Claro", "Vivo", "Tim", "Oi", "Nextel", "Outra", "Nenhuma"];
 
 export default function OSFormComplete({ onSuccess }) {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [uploading, setUploading] = useState(false);
   const [capturandoFoto, setCapturandoFoto] = useState(false);
   const [streamAtivo, setStreamAtivo] = useState(null);
-  const [user, setUser] = useState(null);
   const [dialogNovoCliente, setDialogNovoCliente] = useState(false);
   const [configuracoes, setConfiguracoes] = useState(null);
   const [checklistEntrada, setChecklistEntrada] = useState({});
@@ -95,11 +96,6 @@ export default function OSFormComplete({ onSuccess }) {
       }
     }
 
-    const loadUser = async () => {
-      const currentUser = await base44.auth.me();
-      setUser(currentUser);
-    };
-    loadUser();
   }, []);
 
   const { data: clientes = [] } = useQuery({

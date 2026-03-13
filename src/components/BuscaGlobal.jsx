@@ -96,7 +96,7 @@ export default function BuscaGlobal({ open, onClose }) {
             tipo: 'produto',
             id: p.id,
             titulo: p.nome,
-            subtitulo: `SKU: ${p.sku || 'N/A'} • R$ ${p.preco_venda?.toFixed(2) || '0.00'}`,
+            subtitulo: `SKU: ${p.sku || 'N/A'} • R$ ${(parseFloat(p.preco_venda) || 0).toFixed(2)}`,
             url: createPageUrl('Produtos')
           });
         }
@@ -146,7 +146,7 @@ export default function BuscaGlobal({ open, onClose }) {
             tipo: 'venda',
             id: v.id,
             titulo: v.codigo_venda,
-            subtitulo: `${v.cliente_nome || 'Sem nome'} • R$ ${v.valor_total?.toFixed(2)}`,
+            subtitulo: `${v.cliente_nome || 'Sem nome'} • R$ ${(parseFloat(v.valor_total) || 0).toFixed(2)}`,
             url: createPageUrl('Relatorios')
           });
         }
