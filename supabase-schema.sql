@@ -184,6 +184,7 @@ CREATE TABLE IF NOT EXISTS venda (
   total DECIMAL(10,2) DEFAULT 0,
   forma_pagamento VARCHAR(50),
   pagamentos JSONB DEFAULT '[]',
+  os_id UUID REFERENCES ordem_servico(id), -- Adicionado para vincular Venda a OS
   status VARCHAR(20) DEFAULT 'finalizada',
   observacoes TEXT,
   data_venda TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
