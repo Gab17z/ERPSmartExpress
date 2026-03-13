@@ -200,11 +200,6 @@ export default function OrdensServico() {
   }, [configuracoes]);
 
   React.useEffect(() => {
-    const loadUser = async () => {
-      const currentUser = await base44.auth.me();
-      setUser(currentUser);
-    };
-
     const configSalva = localStorage.getItem('configuracoes_erp');
     if (configSalva) {
       try {
@@ -213,8 +208,6 @@ export default function OrdensServico() {
         console.error("Erro ao carregar configurações:", error);
       }
     }
-
-    loadUser();
   }, []);
 
   const { data: ordensServico = [] } = useQuery({
@@ -942,7 +935,7 @@ export default function OrdensServico() {
 
         <!-- Pré-aprovado -->
         <div class="pre-aprovado">
-          <strong>Pré-aprovado: R$ ${osImpressao.checklist_entrada?.valor_pre_aprovado?.toFixed(2) || '0,00'}</strong>
+          <strong>Pré-aprovado: R$ ${(parseFloat(osImpressao.checklist_entrada?.valor_pre_aprovado) || 0).toFixed(2)}</strong>
         </div>
 
         ${renderChecklistFinalizacao()}
@@ -1749,7 +1742,7 @@ export default function OrdensServico() {
                               <div>
                                 <p className="font-bold text-green-900">Pré-aprovado pelo Cliente</p>
                                 <p className="text-2xl font-bold text-green-600 mt-1">
-                                  R$ {selectedOS.checklist_entrada.valor_pre_aprovado?.toFixed(2) || '0.00'}
+                                  R$ {(parseFloat(selectedOS.checklist_entrada.valor_pre_aprovado) || 0).toFixed(2)}
                                 </p>
                               </div>
                             </div>

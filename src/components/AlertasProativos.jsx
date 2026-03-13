@@ -109,7 +109,7 @@ export default function AlertasProativos() {
       cor: "orange",
       icon: Clock,
       link: createPageUrl("ContasPagar"),
-      itens: contasVencendo.slice(0, 5).map(c => `${c.fornecedor_nome} - R$ ${c.valor_total.toFixed(2)}`)
+      itens: contasVencendo.slice(0, 5).map(c => `${c.fornecedor_nome} - R$ ${(parseFloat(c.valor_total) || 0).toFixed(2)}`)
     },
     {
       tipo: "os",

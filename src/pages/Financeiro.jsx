@@ -249,9 +249,11 @@ export default function Financeiro() {
       dinheiro: 'Dinheiro',
       pix: 'PIX',
       credito: 'Cartao Credito',
+      credito_parcelado: 'Credito Parcelado',
       debito: 'Cartao Debito',
       boleto: 'Boleto',
       transferencia: 'Transferencia',
+      a_prazo: 'A Prazo',
       outros: 'Outros'
     };
     return mapa[forma] || forma;

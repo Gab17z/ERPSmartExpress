@@ -146,7 +146,7 @@ export default function Produtos() {
       try {
         await base44.entities.LogAuditoria.create({
           usuario_id: user?.id || 'sistema',
-          usuario_nome: user?.full_name || 'Sistema',
+          usuario_nome: user?.nome || 'Sistema',
           acao: 'criar',
           recurso: 'Produto',
           recurso_id: resultado.id,
@@ -183,7 +183,7 @@ export default function Produtos() {
       try {
         await base44.entities.LogAuditoria.create({
           usuario_id: user?.id || 'sistema',
-          usuario_nome: user?.full_name || 'Sistema',
+          usuario_nome: user?.nome || 'Sistema',
           acao: 'editar',
           recurso: 'Produto',
           recurso_id: id,
@@ -390,7 +390,6 @@ export default function Produtos() {
 
   const iniciarCamera = async () => {
     try {
-      console.log("Iniciando câmera...");
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         toast.error("Câmera não suportada neste navegador. Use Chrome, Firefox ou Safari.");
@@ -410,7 +409,6 @@ export default function Produtos() {
         audio: false
       });
 
-      console.log("Stream obtido:", stream);
 
       setStreamAtivo(stream);
 
@@ -488,10 +486,6 @@ export default function Produtos() {
   const imprimirEtiqueta = () => {
     if (!produtoEtiqueta) return;
 
-    console.log('=== DEBUG ETIQUETA ===');
-    console.log('Produto:', produtoEtiqueta);
-    console.log('Código de barras:', produtoEtiqueta.codigo_barras);
-    console.log('Tem código de barras?', !!produtoEtiqueta.codigo_barras);
 
     const configuracoes = JSON.parse(localStorage.getItem('configuracoes_erp') || '{}');
     const logoUrl = configuracoes.empresa?.logo_url;
@@ -726,7 +720,7 @@ export default function Produtos() {
         p.sku || '',
         p.nome || '',
         p.estoque_atual || 0,
-        (p.preco_venda || 0).toFixed(2).replace('.', ','),
+        (parseFloat(p.preco_venda) || 0).toFixed(2).replace('.', ','),
         p.marca_nome || '',
         'Sim',
         p.categoria || ''
@@ -753,7 +747,6 @@ export default function Produtos() {
 
     // Primeira linha sao os headers
     const headers = lines[0].split(separator).map(h => h.trim().replace(/"/g, '').toLowerCase());
-    console.log("Headers encontrados:", headers);
 
     // Mapear headers para campos do sistema
     const headerMap = {};
@@ -775,7 +768,6 @@ export default function Produtos() {
         headerMap['categoria'] = i;
       }
     });
-    console.log("Mapeamento de colunas:", headerMap);
 
     // Processar linhas de dados
     const dados = [];
@@ -816,26 +808,21 @@ export default function Produtos() {
   const handleImportarArquivo = async (e) => {
     const file = e.target.files[0];
     if (!file) {
-      console.log("Nenhum arquivo selecionado");
       return;
     }
 
-    console.log("INICIANDO IMPORTACAO");
     setImportando(true);
     toast.info("Processando arquivo...", { duration: 2000 });
 
     try {
-      console.log("Arquivo selecionado:", file.name, "| Tipo:", file.type, "| Tamanho:", file.size, "bytes");
 
       // Ler arquivo CSV diretamente
       const text = await file.text();
-      console.log("Arquivo lido, tamanho do texto:", text.length);
 
       toast.info("Extraindo dados do CSV...", { duration: 2000 });
 
       // Fazer parse do CSV
       const produtosNormalizados = parseCSV(text);
-      console.log("Produtos extraidos:", produtosNormalizados.length);
 
       if (produtosNormalizados.length === 0) {
         toast.error("Nenhum dado encontrado! Verifique se o arquivo tem dados nas celulas e se os headers estao corretos.", { duration: 7000 });
@@ -844,17 +831,14 @@ export default function Produtos() {
         return;
       }
 
-      console.log("🔄 Produtos normalizados:", produtosNormalizados);
 
       const produtosValidos = produtosNormalizados.filter(p => {
         const valido = p.nome && p.nome.trim() !== '' && p.sku && p.sku.trim() !== '' && p.preco_venda > 0;
         if (!valido) {
-          console.warn("⚠️ Produto inválido:", p);
         }
         return valido;
       });
 
-      console.log(`✅ ${produtosValidos.length} produtos válidos de ${produtosNormalizados.length} total`);
 
       if (produtosValidos.length === 0) {
         toast.error("❌ Nenhum produto válido! Certifique-se que as colunas Nome, Código e Valor venda estão preenchidas.", { duration: 7000 });
@@ -879,7 +863,6 @@ export default function Produtos() {
           });
 
           importados++;
-          console.log(`✅ Importado (${importados}/${produtosValidos.length}):`, produto.nome);
         } catch (erro) {
           erros++;
           console.error(`❌ Erro ao importar "${produto.nome}":`, erro);
@@ -1156,7 +1139,7 @@ export default function Produtos() {
                     </TableCell>
                     <TableCell>{produto.marca_nome}</TableCell>
                     <TableCell className="font-semibold text-green-600">
-                      R$ {produto.preco_venda?.toFixed(2)}
+                      R$ {(parseFloat(produto.preco_venda) || 0).toFixed(2)}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -1168,7 +1151,7 @@ export default function Produtos() {
                     </TableCell>
                     {podVerCustos && (
                       <TableCell>
-                        <Badge variant="secondary">{produto.margem_lucro?.toFixed(1) || 0}%</Badge>
+                        <Badge variant="secondary">{(parseFloat(produto.margem_lucro) || 0).toFixed(1)}%</Badge>
                       </TableCell>
                     )}
                     <TableCell className="text-right">

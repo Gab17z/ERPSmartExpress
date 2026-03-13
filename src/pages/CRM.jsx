@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,16 +52,12 @@ export default function CRM() {
     tags: []
   });
 
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: leads = [] } = useQuery({
     queryKey: ['leads'],
     queryFn: () => base44.entities.LeadCRM.list('-created_date'),
-  });
-
-  const { data: user } = useQuery({
-    queryKey: ['user'],
-    queryFn: () => base44.auth.me(),
   });
 
   const createMutation = useMutation({

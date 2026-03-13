@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,26 +27,17 @@ const TAXAS_PADRAO = {
 };
 
 export default function CalculadoraPagamentos() {
+  const { user } = useAuth();
   const [valorVenda, setValorVenda] = useState("");
   const [formaPagamento, setFormaPagamento] = useState("credito_1x");
   const [taxaManual, setTaxaManual] = useState("");
   const [usarTaxaManual, setUsarTaxaManual] = useState(false);
   const [repassarJuros, setRepassarJuros] = useState(true);
   const [taxasConfig, setTaxasConfig] = useState(TAXAS_PADRAO);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const isAdmin = user?.permissoes?.administrador_sistema || false;
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const user = await base44.auth.me();
-        setIsAdmin(user?.role === 'admin');
-      } catch (error) {
-        console.error("Erro ao carregar usuário:", error);
-      }
-    };
-    loadUser();
-
     const carregarTaxas = () => {
       // Carrega do localStorage (mesmo local usado por Configuracoes.jsx)
       const configSalva = localStorage.getItem('configuracoes_erp');

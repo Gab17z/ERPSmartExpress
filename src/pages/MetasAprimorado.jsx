@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,10 +15,10 @@ import { toast } from "sonner";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 export default function MetasAprimorado() {
+  const { user } = useAuth();
   const [dialogMetas, setDialogMetas] = useState(false);
   const [dialogDetalhes, setDialogDetalhes] = useState(false);
-  const [user, setUser] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const isAdmin = user?.permissoes?.administrador_sistema || false;
   const [metasConfig, setMetasConfig] = useState({
     vendas_loja: 50000,
     os_loja: 100,
@@ -58,16 +59,6 @@ export default function MetasAprimorado() {
       console.error("Erro ao carregar metas do localStorage:", error);
     }
 
-    const loadUser = async () => {
-      try {
-        const currentUser = await base44.auth.me();
-        setUser(currentUser);
-        setIsAdmin(currentUser?.role === 'admin');
-      } catch (error) {
-        console.error("Erro ao carregar usuário:", error);
-      }
-    };
-    loadUser();
   }, []);
 
   const salvarMetas = () => {
@@ -474,7 +465,7 @@ export default function MetasAprimorado() {
               <p><strong>Total de Vendas:</strong> {vendasMes.length}</p>
               <p><strong>Valor Total:</strong> R$ {totalVendasMes.toFixed(2)}</p>
               <p><strong>Ticket Médio:</strong> R$ {ticketMedio.toFixed(2)}</p>
-              <p><strong>Maior Venda:</strong> R$ {Math.max(...vendasMes.map(v => v.valor_total), 0).toFixed(2)}</p>
+              <p><strong>Maior Venda:</strong> R$ {(vendasMes.length > 0 ? Math.max(...vendasMes.map(v => parseFloat(v.valor_total) || 0)) : 0).toFixed(2)}</p>
             </TabsContent>
             <TabsContent value="os" className="space-y-3">
               <p><strong>Total de OS:</strong> {osMes.length}</p>

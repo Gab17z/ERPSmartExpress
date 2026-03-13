@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -19,13 +20,13 @@ import { toast } from "sonner";
 import { useConfirm } from '@/contexts/ConfirmContext';
 
 export default function Marcas() {
+  const { user } = useAuth();
   const confirm = useConfirm();
   const [dialogMarca, setDialogMarca] = useState(false);
   const [editingMarca, setEditingMarca] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [uploading, setUploading] = useState(false);
   const [visualizacao, setVisualizacao] = useState('cards'); // 'cards' ou 'lista'
-  const [user, setUser] = useState(null);
   const [configuracoes, setConfiguracoes] = useState(null);
 
   const [formData, setFormData] = useState({
@@ -39,15 +40,6 @@ export default function Marcas() {
   const queryClient = useQueryClient();
 
   React.useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const currentUser = await base44.auth.me();
-        setUser(currentUser);
-      } catch (error) {
-        console.error("Erro ao carregar usuário:", error);
-      }
-    };
-
     const configSalva = localStorage.getItem('configuracoes_erp');
     if (configSalva) {
       try {
@@ -56,8 +48,6 @@ export default function Marcas() {
         console.error("Erro ao carregar configurações:", error);
       }
     }
-
-    loadUser();
   }, []);
 
   const { data: marcas = [], isLoading } = useQuery({

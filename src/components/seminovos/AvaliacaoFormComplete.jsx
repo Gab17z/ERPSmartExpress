@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -22,10 +23,10 @@ const CAPACIDADES_DISPONIVEIS = [
 ];
 
 export default function AvaliacaoFormComplete({ onSuccess }) {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [dialogNovoCliente, setDialogNovoCliente] = useState(false);
   const [activeTab, setActiveTab] = useState("dados-aparelho");
-  const [user, setUser] = useState(null);
   const [configAcessorios, setConfigAcessorios] = useState([]);
 
   const [formData, setFormData] = useState({
@@ -104,11 +105,6 @@ export default function AvaliacaoFormComplete({ onSuccess }) {
       }
     }
 
-    const loadUser = async () => {
-      const currentUser = await base44.auth.me();
-      setUser(currentUser);
-    };
-    loadUser();
   }, []);
 
   const { data: clientes = [] } = useQuery({

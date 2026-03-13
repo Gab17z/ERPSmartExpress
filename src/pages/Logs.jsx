@@ -53,14 +53,14 @@ export default function Logs() {
   const logsFiltrados = logs.filter(log => filtrarPorData(log.data_hora));
 
   // Auditoria Financeira
-  const logsFinanceiros = logsFiltrados.filter(l => 
-    ['criar', 'editar', 'excluir'].includes(l.acao) && 
+  const logsFinanceiros = logsFiltrados.filter(l =>
+    ['criar', 'editar', 'excluir'].includes(l.acao) &&
     ['ContaReceber', 'ContaPagar', 'Venda'].includes(l.recurso)
   );
 
   // Alterações de Valores
-  const alteracoesValores = logsFiltrados.filter(l => 
-    l.acao === 'editar' && l.recurso === 'Venda' && 
+  const alteracoesValores = logsFiltrados.filter(l =>
+    l.acao === 'editar' && l.recurso === 'Venda' &&
     l.dados_antes?.valor_total !== l.dados_depois?.valor_total
   );
 
@@ -74,7 +74,7 @@ export default function Logs() {
     queryKey: ['logs-desconto'],
     queryFn: async () => {
       try {
-        return await base44.entities.LogDesconto.list('-data_hora', 200);
+        return await base44.entities.LogDesconto.list('-created_date', 200);
       } catch {
         return [];
       }
@@ -92,7 +92,7 @@ export default function Logs() {
     },
   });
 
-  const descontosFiltrados = logsDesconto.filter(log => filtrarPorData(log.data_hora));
+  const descontosFiltrados = logsDesconto.filter(log => filtrarPorData(log.created_date));
   const movimentacoesFiltradas = movimentacoesEstoque.filter(mov => filtrarPorData(mov.data_movimentacao));
   const vendasFiltradas = vendas.filter(v => v.status === 'finalizada' && filtrarPorData(v.data_venda));
   const logsConfiguracao = logsFiltrados.filter(l => l.recurso === 'Configuracao' || l.acao?.includes('config'));
@@ -336,18 +336,18 @@ export default function Logs() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {logsDesconto.filter(log => filtrarPorData(log.data_hora)).map((log) => (
+                  {logsDesconto.filter(log => filtrarPorData(log.created_date)).map((log) => (
                     <TableRow key={log.id}>
-                      <TableCell className="text-xs">{format(new Date(log.data_hora), 'dd/MM/yyyy HH:mm')}</TableCell>
-                      <TableCell>{log.vendedor_nome}</TableCell>
-                      <TableCell className="font-mono">{log.codigo_venda || 'N/A'}</TableCell>
+                      <TableCell className="text-xs">{format(new Date(log.created_date), 'dd/MM/yyyy HH:mm')}</TableCell>
+                      <TableCell>{log.usuario_nome}</TableCell>
+                      <TableCell className="font-mono">{log.venda_id || 'N/A'}</TableCell>
                       <TableCell>
                         <div>
                           <p className="font-semibold text-orange-600">R$ {log.valor_desconto?.toFixed(2)}</p>
                           <p className="text-xs text-slate-500">{log.percentual_desconto?.toFixed(1)}%</p>
                         </div>
                       </TableCell>
-                      <TableCell className="font-medium">{log.autorizado_por}</TableCell>
+                      <TableCell className="font-medium">{log.aprovador_nome}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

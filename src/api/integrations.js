@@ -37,22 +37,18 @@ export const CreateFileSignedUrl = async ({ path, bucket = 'private', expiresIn 
 
 // Stubs para funções que precisam de implementação via Edge Functions
 export const InvokeLLM = async (data) => {
-  console.warn('InvokeLLM: Implementar via Supabase Edge Function com OpenAI/Anthropic');
   throw new Error('Função não implementada. Configure uma Edge Function no Supabase.');
 };
 
 export const SendEmail = async (data) => {
-  console.warn('SendEmail: Implementar via Supabase Edge Function com Resend/SendGrid');
   throw new Error('Função não implementada. Configure uma Edge Function no Supabase.');
 };
 
 export const GenerateImage = async (data) => {
-  console.warn('GenerateImage: Implementar via Supabase Edge Function');
   throw new Error('Função não implementada. Configure uma Edge Function no Supabase.');
 };
 
 export const ExtractDataFromUploadedFile = async (data) => {
-  console.warn('ExtractDataFromUploadedFile: Implementar via Supabase Edge Function');
   throw new Error('Função não implementada. Configure uma Edge Function no Supabase.');
 };
 

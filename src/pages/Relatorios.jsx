@@ -29,9 +29,10 @@ import {
   Legend,
   ResponsiveContainer
 } from "recharts";
-import { Download, TrendingUp, DollarSign, Package, Users, Shield, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Download, TrendingUp, DollarSign, Package, Users, Shield, ArrowUpDown, ArrowUp, ArrowDown, Printer } from "lucide-react";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
+import { imprimirCupomVenda } from "@/utils/imprimirCupom";
 import {
   Table,
   TableBody,
@@ -96,7 +97,7 @@ export default function Relatorios() {
 
   const { data: logsDesconto = [] } = useQuery({
     queryKey: ['logs-desconto'],
-    queryFn: () => base44.entities.LogDesconto.list('-data_hora'),
+    queryFn: () => base44.entities.LogDesconto.list('-created_date'),
   });
 
   const { data: comissoes = [] } = useQuery({
@@ -768,6 +769,7 @@ export default function Relatorios() {
                         Status {getSortIcon('status')}
                       </div>
                     </TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -793,11 +795,22 @@ export default function Relatorios() {
                           </Badge>
                         ))}
                       </TableCell>
-                      <TableCell className="font-bold text-green-600">R$ {venda.valor_total?.toFixed(2)}</TableCell>
+                      <TableCell className="font-bold text-green-600">R$ {(parseFloat(venda.valor_total) || 0).toFixed(2)}</TableCell>
                       <TableCell>
                         <Badge variant={venda.status === 'finalizada' ? 'default' : 'destructive'}>
                           {venda.status}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-slate-500 hover:text-cyan-600"
+                          title="Reimprimir cupom"
+                          onClick={() => imprimirCupomVenda({ ...venda, _reimpressao: true })}
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}

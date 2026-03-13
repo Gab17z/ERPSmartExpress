@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { io } from "socket.io-client";
@@ -109,8 +110,8 @@ const CATEGORIAS = [
 ];
 
 export default function AdmWhatsApp() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [user, setUser] = useState(null);
   const [conversaSelecionada, setConversaSelecionada] = useState(null);
   const [mensagem, setMensagem] = useState("");
   const [sugestoesResposta, setSugestoesResposta] = useState([]);
@@ -156,11 +157,9 @@ export default function AdmWhatsApp() {
       const saved = localStorage.getItem('whatsapp_conversations');
       if (saved) {
         const parsed = JSON.parse(saved);
-        console.log(`📦 Carregando ${parsed.length} conversas do cache local`);
         return parsed;
       }
     } catch (e) {
-      console.log('Erro ao carregar cache:', e);
     }
     return [];
   });
@@ -194,18 +193,6 @@ export default function AdmWhatsApp() {
     "Objetos": ["🎁", "🎈", "🎉", "🎊", "🎂", "🎄", "🎃", "💰", "💵", "📱", "💻", "⌚", "📷", "🎵", "🎶", "🔔", "⭐", "🌟", "💫", "✨", "🔥", "💯"]
   };
 
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const currentUser = await base44.auth.me();
-        setUser(currentUser);
-      } catch (e) {
-        console.error("Erro ao carregar usuário:", e);
-      }
-    };
-    loadUser();
-  }, []);
-
   // Conexão Socket.IO com servidor WhatsApp
   useEffect(() => {
     // Conectar ao servidor WhatsApp via Socket.IO
@@ -219,11 +206,9 @@ export default function AdmWhatsApp() {
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      console.log('Socket.IO conectado ao servidor WhatsApp');
     });
 
     socket.on('status', (data) => {
-      console.log('Status WhatsApp:', data);
       setWhatsappStatus(data.status);
       if (data.number) {
         setConnectedNumber(data.number);
@@ -247,13 +232,11 @@ export default function AdmWhatsApp() {
     });
 
     socket.on('qr', (data) => {
-      console.log('QR Code recebido!');
       setQrCode(data.qr);
       setWhatsappStatus('qr_ready');
     });
 
     socket.on('ready', (data) => {
-      console.log('WhatsApp pronto:', data);
       setQrCode(null);
       setWhatsappStatus('connected');
       setConnectedNumber(data.number);
@@ -263,7 +246,6 @@ export default function AdmWhatsApp() {
     });
 
     socket.on('disconnected', (data) => {
-      console.log('WhatsApp desconectado:', data);
       setWhatsappStatus('disconnected');
       setConnectedNumber(null);
       setQrCode(null);
@@ -281,7 +263,6 @@ export default function AdmWhatsApp() {
 
     // Eventos de sincronização progressiva
     socket.on('sync_start', (data) => {
-      console.log('🔵 SOCKET sync_start recebido:', data);
       syncCompletedRef.current = true; // Marcar que socket respondeu
       photosFetchStartedRef.current = false; // Resetar para buscar fotos após sync
       setIsSyncing(true);
@@ -290,7 +271,6 @@ export default function AdmWhatsApp() {
     });
 
     socket.on('sync_progress', (data) => {
-      console.log(`🔵 SOCKET sync_progress: ${data.processed}/${data.total} (${data.percentage}%)`);
       setSyncProgress({
         processed: data.processed,
         total: data.total,
@@ -300,7 +280,6 @@ export default function AdmWhatsApp() {
     });
 
     socket.on('sync_complete', (data) => {
-      console.log('🔵 SOCKET sync_complete recebido:', data.total, 'conversas');
       setIsSyncing(false);
       setSyncProgress(null);
       setSyncedConversations(data.conversations);
@@ -308,9 +287,7 @@ export default function AdmWhatsApp() {
       try {
         localStorage.setItem('whatsapp_conversations', JSON.stringify(data.conversations));
         localStorage.setItem('whatsapp_conversations_timestamp', Date.now().toString());
-        console.log('💾 Conversas salvas no cache local');
       } catch (e) {
-        console.log('Erro ao salvar cache:', e);
       }
       // Resetar flag para permitir refresh manual posterior
       syncStartedRef.current = false;
@@ -329,7 +306,6 @@ export default function AdmWhatsApp() {
 
     // Atualização de fotos de perfil em background
     socket.on('profile_pics_update', (data) => {
-      console.log('🔵 SOCKET profile_pics_update:', data.updates?.length, 'fotos');
       if (data.updates && data.updates.length > 0) {
         setSyncedConversations(prev => {
           const updated = [...prev];
@@ -345,13 +321,11 @@ export default function AdmWhatsApp() {
     });
 
     socket.on('message', (data) => {
-      console.log('Nova mensagem recebida:', data);
       // Atualizar query do banco
       queryClient.invalidateQueries({ queryKey: ['conversas-banco'] });
 
       // Se a mensagem é nossa (fromMe), não adicionar pois já foi adicionada localmente com os dados de mídia
       if (data.fromMe) {
-        console.log('Mensagem enviada por nós, ignorando duplicata do socket');
         return;
       }
 
@@ -413,7 +387,6 @@ export default function AdmWhatsApp() {
           // Verificar se a mensagem já existe para evitar duplicatas
           const mensagemExiste = (prev.mensagens || []).some(m => m.id === data.id);
           if (mensagemExiste) {
-            console.log('Mensagem já existe, ignorando:', data.id);
             return prev;
           }
 
@@ -446,7 +419,6 @@ export default function AdmWhatsApp() {
     });
 
     socket.on('message_sent', (data) => {
-      console.log('Mensagem enviada:', data);
     });
 
     socket.on('connect_error', (error) => {
@@ -466,32 +438,26 @@ export default function AdmWhatsApp() {
       return;
     }
     if (isSyncing || syncStartedRef.current) {
-      console.log('Sincronização já em andamento, ignorando...', { isSyncing, syncStarted: syncStartedRef.current });
       return;
     }
 
-    console.log('Sincronização manual iniciada...');
     syncStartedRef.current = true; // Marcar sync como iniciado
     syncCompletedRef.current = false;
 
     // Tentar via Socket primeiro
     if (socketRef.current && socketRef.current.connected) {
-      console.log('Emitindo sync_conversations via Socket...');
       socketRef.current.emit('sync_conversations', { limit: 500 });
 
       // Aguardar 5 segundos para ver se o socket responde
       setTimeout(async () => {
         if (syncCompletedRef.current) {
-          console.log('Socket respondeu, sync via Socket concluído');
           return;
         }
         // Socket não respondeu, usar REST
-        console.log('Socket não respondeu após 5s, usando REST API...');
         await sincronizarViaREST();
       }, 5000);
     } else {
       // Fallback: usar REST API diretamente
-      console.log('Socket não conectado, usando REST API...');
       await sincronizarViaREST();
     }
   }, [whatsappStatus, isSyncing]);
@@ -509,15 +475,12 @@ export default function AdmWhatsApp() {
       const data = await response.json();
 
       if (data.conversations) {
-        console.log(`REST API: ${data.conversations.length} conversas carregadas`);
         setSyncedConversations(data.conversations);
         // Salvar no localStorage
         try {
           localStorage.setItem('whatsapp_conversations', JSON.stringify(data.conversations));
           localStorage.setItem('whatsapp_conversations_timestamp', Date.now().toString());
-          console.log('💾 Conversas salvas no cache local');
         } catch (e) {
-          console.log('Erro ao salvar cache:', e);
         }
         toast.success(`${data.conversations.length} conversas carregadas!`);
       } else if (data.error) {
@@ -537,25 +500,14 @@ export default function AdmWhatsApp() {
 
   // Auto-sincronizar quando conectado e sem conversas carregadas OU quando forçado
   useEffect(() => {
-    console.log('useEffect sync check:', {
-      whatsappStatus,
-      isSyncing,
-      syncedConversationsLength: syncedConversations.length,
-      forceFullSync,
-      socketExists: !!socketRef.current,
-      socketConnected: socketRef.current?.connected,
-      syncStarted: syncStartedRef.current
-    });
 
     // Verificar se já iniciamos sync nesta sessão (exceto se for forçado)
     if (syncStartedRef.current && !forceFullSync) {
-      console.log('Auto-sync: Sync já iniciado nesta sessão, ignorando...');
       return;
     }
 
     // Se já tem conversas no cache e não está forçando sync, não fazer nada
     if (syncedConversations.length > 0 && !forceFullSync) {
-      console.log(`📦 Usando ${syncedConversations.length} conversas do cache local`);
       return;
     }
 
@@ -563,52 +515,41 @@ export default function AdmWhatsApp() {
     const shouldSync = whatsappStatus === 'connected' && !isSyncing && (syncedConversations.length === 0 || forceFullSync);
 
     if (shouldSync) {
-      console.log('Auto-sincronização: Condições atendidas, iniciando sync em 1.5s...', { forceFullSync });
 
       const timer = setTimeout(async () => {
         // Double-check se ainda não iniciou (pode ter mudado durante o timeout)
         if (syncStartedRef.current) {
-          console.log('Auto-sync: Sync já iniciado durante timeout, cancelando...');
           return;
         }
         syncStartedRef.current = true; // Marcar que iniciamos sync
 
         // Tentar via Socket primeiro
         if (socketRef.current && socketRef.current.connected) {
-          console.log('Auto-sync: Emitindo sync_conversations via Socket...');
           syncCompletedRef.current = false; // Reset flag antes de tentar
           socketRef.current.emit('sync_conversations', { limit: 500 });
 
           // Se não receber resposta em 5s, usar REST API
           setTimeout(async () => {
-            console.log('Auto-sync: Verificando se Socket respondeu...', { syncCompleted: syncCompletedRef.current });
 
             // Se o socket já respondeu (syncCompletedRef = true), não precisamos do REST fallback
             if (syncCompletedRef.current) {
-              console.log('Auto-sync: Socket respondeu com sucesso, pulando REST fallback');
               return;
             }
 
             // Socket não respondeu, usar REST API como fallback
-            console.log('Auto-sync: Socket não respondeu após 5s, usando REST API fallback...');
             try {
               setIsSyncing(true);
               toast.info('Carregando conversas via REST...');
               const url = `${WHATSAPP_SERVER_URL}/api/conversations?limit=500`;
-              console.log('REST API URL:', url);
               const response = await fetch(url);
-              console.log('REST API Response status:', response.status, response.statusText);
               const data = await response.json();
-              console.log('REST API Response data:', data);
               if (data.conversations) {
-                console.log(`REST API: ${data.conversations.length} conversas recebidas`);
                 setSyncedConversations(data.conversations);
                 toast.success(`${data.conversations.length} conversas carregadas!`);
               } else if (data.error) {
                 console.error('REST API Error:', data.error);
                 toast.error(data.error);
               } else {
-                console.log('REST API: Resposta sem conversations nem error:', data);
               }
             } catch (e) {
               console.error('REST API Exception:', e);
@@ -620,7 +561,6 @@ export default function AdmWhatsApp() {
           }, 5000);
         } else {
           // Usar REST API diretamente
-          console.log('Auto-sync: Socket não conectado, usando REST API diretamente...');
           try {
             setIsSyncing(true);
             toast.info('Carregando conversas...');
@@ -666,7 +606,6 @@ export default function AdmWhatsApp() {
 
     // Marcar que iniciamos a busca de fotos
     photosFetchStartedRef.current = true;
-    console.log(`📷 ${conversasSemFoto.length} conversas sem foto detectadas, buscando em background...`);
 
     // Buscar fotos em lotes de 10
     const fetchPhotosInBatches = async () => {
@@ -713,7 +652,6 @@ export default function AdmWhatsApp() {
         }
       }
 
-      console.log('📷 Busca de fotos em background concluída');
     };
 
     // Executar após um pequeno delay para não competir com outras operações
@@ -951,7 +889,6 @@ export default function AdmWhatsApp() {
         return base44.entities.ConversaWhatsApp.update(id, dados);
       }
       // Se não é UUID, a conversa ainda não foi sincronizada - ignorar
-      console.warn('Tentativa de atualizar conversa não sincronizada:', id);
       return null;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['conversas-banco'] })
@@ -1077,7 +1014,6 @@ export default function AdmWhatsApp() {
       } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
         mimeType = 'audio/webm;codecs=opus';
       }
-      console.log('Formato de gravação selecionado:', mimeType);
 
       const recorder = new MediaRecorder(stream, { mimeType });
       audioChunksRef.current = [];
@@ -1089,16 +1025,13 @@ export default function AdmWhatsApp() {
       };
 
       recorder.onstop = async () => {
-        console.log('Gravação parada, chunks:', audioChunksRef.current.length);
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
-        console.log('Blob criado:', { size: blob.size, type: blob.type });
 
         if (audioStreamRef.current) {
           audioStreamRef.current.getTracks().forEach(track => track.stop());
         }
 
         if (blob.size > 0) {
-          console.log('Enviando áudio...');
           await enviarAudio(blob, mimeType);
         } else {
           console.error('Blob vazio, não há áudio para enviar');
@@ -1108,7 +1041,6 @@ export default function AdmWhatsApp() {
 
       // Gravar em chunks de 250ms
       recorder.start(250);
-      console.log('Gravação iniciada com mimeType:', mimeType);
       setMediaRecorder(recorder);
       setIsRecording(true);
     } catch (err) {
@@ -1119,14 +1051,11 @@ export default function AdmWhatsApp() {
 
   // Parar gravação de áudio e enviar
   const pararGravacao = () => {
-    console.log('pararGravacao chamada, mediaRecorder:', mediaRecorder?.state);
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      console.log('Chamando mediaRecorder.stop()...');
       mediaRecorder.stop();
       setIsRecording(false);
       setMediaRecorder(null);
     } else {
-      console.log('mediaRecorder não está ativo ou é null');
     }
   };
 
@@ -1182,7 +1111,6 @@ export default function AdmWhatsApp() {
         baseMimeType = 'audio/mpeg';
       }
 
-      console.log('Enviando áudio:', { chatId, mimeType, baseMimeType, ext, base64Length: base64.length });
 
       const response = await fetch(`${WHATSAPP_SERVER_URL}/api/send`, {
         method: 'POST',
@@ -1218,11 +1146,9 @@ export default function AdmWhatsApp() {
             filename: `audio.${ext}`
           }
         };
-        console.log('Adicionando mensagem de áudio:', { id: novaMensagem.id, mediaExists: !!novaMensagem.media, mimetype: novaMensagem.media?.mimetype });
         setConversaSelecionada(prev => {
           if (!prev) return prev;
           const novasMensagens = [...(prev.mensagens || []), novaMensagem];
-          console.log('Mensagens após adicionar áudio:', novasMensagens.length, 'última:', novasMensagens[novasMensagens.length - 1]);
           return {
             ...prev,
             mensagens: novasMensagens
@@ -1240,7 +1166,6 @@ export default function AdmWhatsApp() {
   const enviarMensagem = async () => {
     // CORREÇÃO: Verificar mutex para evitar envios duplicados
     if (isSending) {
-      console.log("Envio já em andamento, ignorando...");
       return;
     }
 
@@ -1364,7 +1289,6 @@ export default function AdmWhatsApp() {
           let nomeAtualizado = conversa.nome_cliente;
           if (data.contactInfo && data.contactInfo.name && !data.contactInfo.name.startsWith('+')) {
             nomeAtualizado = data.contactInfo.name;
-            console.log(`📇 Nome do contato atualizado: "${nomeAtualizado}"`);
 
             // Atualizar também na lista de conversas sincronizadas
             setSyncedConversations(prev => prev.map(c =>
@@ -1384,7 +1308,6 @@ export default function AdmWhatsApp() {
           try {
             await fetch(`${WHATSAPP_SERVER_URL}/api/read/${encodeURIComponent(chatId)}`, { method: 'POST' });
           } catch (e) {
-            console.log('Erro ao marcar como lida:', e);
           }
           return;
         }
@@ -2315,7 +2238,6 @@ export default function AdmWhatsApp() {
                 {(conversaSelecionada.mensagens || []).map((msg, index) => {
                   // Log para depuração de mídia
                   if (msg.hasMedia) {
-                    console.log('Renderizando msg com mídia:', { id: msg.id, hasMedia: msg.hasMedia, mediaExists: !!msg.media, mimetype: msg.media?.mimetype, tipo: msg.tipo });
                   }
                   return (
                   <div key={msg.id || index} className={`flex ${msg.tipo === 'saida' ? 'justify-end' : 'justify-start'}`}>

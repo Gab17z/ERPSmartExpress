@@ -52,10 +52,7 @@ export default function Carrinho() {
       if (config) {
         const parsed = JSON.parse(config);
         setConfiguracoes(parsed);
-        console.log("📋 Config carregada:", parsed);
-        console.log("📧 Email notificação:", parsed?.sistema?.emails_notificacao_vendas);
       } else {
-        console.log("⚠️ Nenhuma configuração encontrada");
       }
     };
     
@@ -176,9 +173,6 @@ export default function Carrinho() {
       const config = configAtual ? JSON.parse(configAtual) : null;
       const emailNotif = config?.sistema?.emails_notificacao_vendas;
       
-      console.log("🔔 Tentando enviar email...");
-      console.log("📧 Email configurado:", emailNotif);
-      console.log("📋 Config completa:", config);
       
       if (emailNotif && emailNotif.trim()) {
         try {
@@ -207,12 +201,10 @@ CEP: ${pedidoData.endereco.cep}
 Observações: ${pedidoData.observacoes || 'Nenhuma'}`
           });
           
-          console.log("✅ Email enviado!");
         } catch (error) {
           console.error("❌ ERRO EMAIL:", error);
         }
       } else {
-        console.log("⚠️ Email NÃO configurado!");
       }
 
       return venda;

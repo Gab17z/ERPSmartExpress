@@ -56,6 +56,7 @@ import AvaliacaoFormComplete from "@/components/seminovos/AvaliacaoFormComplete"
 import CalculadoraQuick from "@/components/calculadora/CalculadoraQuick";
 import PixPayment from "@/components/pdv/PixPayment";
 import { useConfirm } from '@/contexts/ConfirmContext';
+import { imprimirCupomVenda } from "@/utils/imprimirCupom";
 
 export default function PDV() {
   const confirm = useConfirm();
@@ -91,6 +92,8 @@ export default function PDV() {
   const [valorPix, setValorPix] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false); // CORREÇÃO: Mutex para evitar venda duplicada
   const [osVinculada, setOsVinculada] = useState(null); // OS vinculada à venda (quando faturando OS)
+  const [dialogReimprimir, setDialogReimprimir] = useState(false);
+  const [buscaReimprimir, setBuscaReimprimir] = useState("");
 
   // Estado de busca no dialog de cliente
   const [buscaClientePDV, setBuscaClientePDV] = useState("");
@@ -112,7 +115,6 @@ export default function PDV() {
     queryKey: ['produtos'],
     queryFn: async () => {
       const prods = await base44.entities.Produto.list('nome');
-      console.log('Produtos carregados no PDV:', prods);
       return prods;
     },
   });
@@ -134,6 +136,13 @@ export default function PDV() {
     queryFn: () => base44.entities.UsuarioSistema.list('nome'),
   });
 
+  // Vendas recentes para reimpressão (carrega só quando dialog aberto)
+  const { data: vendasRecentes = [] } = useQuery({
+    queryKey: ['vendas-reimpressao'],
+    queryFn: () => base44.entities.Venda.list('-created_date', 30),
+    enabled: dialogReimprimir,
+  });
+
   useEffect(() => {
     const configSalva = localStorage.getItem('configuracoes_erp');
     if (configSalva) {
@@ -149,7 +158,6 @@ export default function PDV() {
                 toast.success("🖥️ Modo tela cheia ativado automaticamente!");
               })
               .catch(() => {
-                console.log("Fullscreen automático bloqueado pelo navegador");
               });
           }, 500);
         }
@@ -367,7 +375,6 @@ export default function PDV() {
       // CRÍTICO: Registrar transações financeiras no Caixa Aberto
       try {
         if (caixaAberto && venda.pagamentos && venda.pagamentos.length > 0) {
-          console.log("Iniciando lançamentos no caixa:", caixaAberto.id);
 
           let somaDinheiro = 0;
           let somaCartao = 0;
@@ -380,13 +387,12 @@ export default function PDV() {
 
             // Só lança transação se o valor for maior que zero
             if (valorLiquidoPagamento > 0) {
-              await base44.entities.Transacao.create({
+              await base44.entities.MovimentacaoCaixa.create({
                 caixa_id: caixaAberto.id,
                 venda_id: venda.id,
                 tipo: 'entrada',
                 descricao: `Venda PDV - ${venda.codigo_venda} (${pag.forma_pagamento})`,
                 valor: valorLiquidoPagamento,
-                categoria: 'venda',
                 forma_pagamento: pag.forma_pagamento,
                 data: new Date().toISOString(),
                 usuario: user?.nome || 'Sistema'
@@ -395,20 +401,20 @@ export default function PDV() {
               somaTotal += valorLiquidoPagamento;
               if (pag.forma_pagamento === 'dinheiro') somaDinheiro += valorLiquidoPagamento;
               else if (pag.forma_pagamento === 'pix') somaPix += valorLiquidoPagamento;
-              else somaCartao += valorLiquidoPagamento; // Debito, Credito, etc
+              else if (pag.forma_pagamento === 'cartao_credito' || pag.forma_pagamento === 'cartao_debito' || pag.forma_pagamento === 'credito_parcelado') somaCartao += valorLiquidoPagamento;
+              // 'a_prazo' e 'cheque' entram na somaTotal mas não incrementam dinheiro, pix ou cartao no saldo resumido
             }
           }
 
           // Se houve troco, registrar transação de saída para rastreabilidade
           const trocoGerado = parseFloat(venda.troco || 0);
           if (trocoGerado > 0) {
-            await base44.entities.Transacao.create({
+            await base44.entities.MovimentacaoCaixa.create({
               caixa_id: caixaAberto.id,
               venda_id: venda.id,
               tipo: 'saida',
               descricao: `Troco - ${venda.codigo_venda}`,
               valor: trocoGerado,
-              categoria: 'troco',
               forma_pagamento: 'dinheiro',
               data: new Date().toISOString(),
               usuario: user?.nome || 'Sistema'
@@ -428,7 +434,6 @@ export default function PDV() {
               saldo_pix: parseFloat(caixaAberto.saldo_pix || 0) + somaPix,
               saldo_final: parseFloat(caixaAberto.saldo_final || 0) + somaTotal
             });
-            console.log("Saldos do caixa atualizados com sucesso!");
           }
         }
       } catch (error) {
@@ -441,7 +446,7 @@ export default function PDV() {
         const emailNotif = config?.sistema?.emails_notificacao_vendas;
 
         if (emailNotif && config?.notificacoes?.email_nova_venda) {
-          const itensTexto = venda.itens.map(i => `${i.produto_nome} (x${i.quantidade}) - R$ ${i.subtotal.toFixed(2)}`).join('\n');
+          const itensTexto = (venda.itens || []).map(i => `${i.produto_nome} (x${i.quantidade}) - R$ ${(parseFloat(i.subtotal) || 0).toFixed(2)}`).join('\n');
 
           await base44.integrations.Core.SendEmail({
             to: emailNotif,
@@ -456,11 +461,11 @@ Data: ${format(new Date(), 'dd/MM/yyyy HH:mm')}
 ITENS:
 ${itensTexto}
 
-Subtotal: R$ ${venda.subtotal.toFixed(2)}
-Desconto: R$ ${venda.desconto_total.toFixed(2)}
-TOTAL: R$ ${venda.valor_total.toFixed(2)}
+Subtotal: R$ ${(parseFloat(venda.subtotal) || 0).toFixed(2)}
+Desconto: R$ ${(parseFloat(venda.desconto_total) || 0).toFixed(2)}
+TOTAL: R$ ${(parseFloat(venda.valor_total) || 0).toFixed(2)}
 
-Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')}`
+Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).join(', ')}`
           });
         }
       } catch (error) {
@@ -475,7 +480,6 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
             venda_id: venda.id,
             data_faturamento: new Date().toISOString()
           });
-          console.log(`OS ${vendaData.os_codigo} atualizada para 'faturada' com venda_id: ${venda.id}`);
         } catch (error) {
           console.error("Erro ao atualizar status da OS:", error);
         }
@@ -656,15 +660,13 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
         const valorDesconto = (calcularSubtotal() * descontoTemporario) / 100;
         await base44.entities.LogDesconto.create({
           venda_id: null,
-          codigo_venda: null,
-          vendedor_nome: user?.nome || "N/A",
+          usuario_id: user?.id,
+          usuario_nome: user?.nome || "N/A",
           percentual_desconto: descontoTemporario,
           valor_desconto: valorDesconto,
-          valor_venda: calcularSubtotal(),
-          autorizado_por: usuarioAutorizador.user_nome,
-          autorizado_por_id: usuarioAutorizador.user_id,
-          codigo_barras_usado: codigoBarrasDigitado,
-          data_hora: new Date().toISOString()
+          motivo: "Desconto autorizado via Supervisor no PDV",
+          aprovador_nome: usuarioAutorizador.user_nome,
+          aprovador_id: usuarioAutorizador.user_id,
         });
       } catch (logError) {
         console.error("Erro ao registrar log:", logError);
@@ -886,6 +888,20 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
       return;
     }
 
+    // Validação de A Prazo (Exige Cliente)
+    const pagamentoAPrazo = pagamentos.find(p => p.forma_pagamento === "a_prazo");
+    if (pagamentoAPrazo && !clienteSelecionado) {
+      toast.error("Para vendas A Prazo, é obrigatório selecionar um cliente!");
+      return;
+    }
+
+    // Validação Crédito Parcelado
+    const pagamentoParcelado = pagamentos.find(p => p.forma_pagamento === "credito_parcelado");
+    if (pagamentoParcelado && (!pagamentoParcelado.parcelas || pagamentoParcelado.parcelas < 2)) {
+      toast.error("Para Crédito Parcelado, a quantidade mínima de parcelas é 2!");
+      return;
+    }
+
     // Verificar se tem PIX nos pagamentos
     const pagamentoPix = pagamentos.find(p => p.forma_pagamento === "pix");
     if (pagamentoPix && pagamentoPix.valor > 0) {
@@ -971,124 +987,7 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
   };
 
   const imprimirCupom = () => {
-    const config = JSON.parse(localStorage.getItem('configuracoes_erp') || '{}');
-    const empresa = config.empresa || {};
-    const impressao = config.impressao || {};
-
-    const cupom = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Cupom de Venda</title>
-        <style>
-          @media print {
-            @page { margin: 0; size: 80mm auto; }
-            body { margin: 0; padding: 0; }
-          }
-          body { 
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            width: 80mm;
-            margin: 0 auto;
-            padding: 5mm;
-          }
-          .center { text-align: center; }
-          .bold { font-weight: bold; }
-          .divider { border-top: 1px dashed #000; margin: 5px 0; }
-          .item { display: flex; justify-content: space-between; }
-          .total { font-size: 14px; font-weight: bold; margin-top: 10px; }
-          .logo { width: 50px; height: 50px; margin: 5px auto; }
-        </style>
-      </head>
-      <body>
-        ${impressao.logo_no_cupom && empresa.logo_url ? `
-          <div class="center">
-            <img src="${empresa.logo_url}" class="logo" />
-          </div>
-        ` : ''}
-        
-        <div class="center bold">
-          ${empresa.nome || 'Smart Express'}<br>
-          ${empresa.cnpj || ''}<br>
-          ${empresa.telefone || ''}<br>
-          ${empresa.endereco || ''}
-        </div>
-        
-        <div class="divider"></div>
-        
-        <div class="center">
-          <p class="bold">CUPOM NÃO FISCAL</p>
-          <p>Venda: ${vendaFinalizada?.codigo_venda}</p>
-          <p>${format(new Date(), 'dd/MM/yyyy HH:mm:ss')}</p>
-        </div>
-        
-        <div class="divider"></div>
-        
-        ${vendaFinalizada?.itens?.map(item => `
-          <div class="item">
-            <span>${item.produto_nome}</span>
-          </div>
-          <div class="item">
-            <span>${item.quantidade} x R$ ${item.preco_unitario.toFixed(2)}</span>
-            <span>R$ ${item.subtotal.toFixed(2)}</span>
-          </div>
-        `).join('')}
-        
-        <div class="divider"></div>
-        
-        <div class="item">
-          <span>SUBTOTAL:</span>
-          <span>R$ ${vendaFinalizada?.subtotal?.toFixed(2)}</span>
-        </div>
-        
-        ${vendaFinalizada?.desconto_total > 0 ? `
-          <div class="item">
-            <span>DESCONTO:</span>
-            <span>- R$ ${vendaFinalizada?.desconto_total?.toFixed(2)}</span>
-          </div>
-        ` : ''}
-        
-        <div class="item total">
-          <span>TOTAL:</span>
-          <span>R$ ${vendaFinalizada?.valor_total?.toFixed(2)}</span>
-        </div>
-        
-        <div class="divider"></div>
-        
-        <div>
-          <p class="bold">PAGAMENTO:</p>
-          ${vendaFinalizada?.pagamentos?.map(pag => `
-            <div class="item">
-              <span>${pag.forma_pagamento.replace(/_/g, ' ').toUpperCase()}</span>
-              <span>R$ ${pag.valor.toFixed(2)}</span>
-            </div>
-          `).join('')}
-          
-          ${vendaFinalizada?.troco > 0 ? `
-            <div class="item">
-              <span>TROCO:</span>
-              <span>R$ ${vendaFinalizada?.troco.toFixed(2)}</span>
-            </div>
-          ` : ''}
-        </div>
-        
-        <div class="divider"></div>
-        
-        <div class="center">
-          <p>Vendedor: ${vendaFinalizada?.vendedor_nome}</p>
-          ${vendaFinalizada?.cliente_nome ? `<p>Cliente: ${vendaFinalizada.cliente_nome}</p>` : ''}
-          ${impressao.rodape_cupom ? `<p>${impressao.rodape_cupom}</p>` : ''}
-          <p class="bold">OBRIGADO PELA PREFERÊNCIA!</p>
-          <p>Volte sempre!</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    const janela = window.open('', '_blank');
-    janela.document.write(cupom);
-    janela.document.close();
-    janela.print();
+    imprimirCupomVenda(vendaFinalizada);
   };
 
   const toggleFullscreen = () => {
@@ -1174,6 +1073,16 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
               </div>
 
               <Button
+                onClick={() => setDialogReimprimir(true)}
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 sm:h-11 sm:w-11 flex-shrink-0 text-cyan-600 border-cyan-200 hover:bg-cyan-50 hover:text-cyan-700"
+                title="Reimprimir Cupom"
+              >
+                <Printer className="w-4 h-4 sm:w-5 sm:h-5" />
+              </Button>
+
+              <Button
                 onClick={() => setDialogOS(true)}
                 variant="outline"
                 size="icon"
@@ -1254,7 +1163,7 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
                       </div>
                       <h3 className="font-semibold text-[10px] sm:text-xs mb-1 truncate leading-tight">{produto.nome}</h3>
                       <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs sm:text-base font-bold text-green-600">R$ {produto.preco_venda?.toFixed(2)}</span>
+                        <span className="text-xs sm:text-base font-bold text-green-600">R$ {(parseFloat(produto.preco_venda) || 0).toFixed(2)}</span>
                         <Badge variant="secondary" className="text-[9px] sm:text-xs px-1 py-0">Est: {produto.estoque_atual || 0}</Badge>
                       </div>
                     </CardContent>
@@ -1362,7 +1271,7 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-semibold text-[11px] sm:text-xs truncate">{item.produto_nome}</h4>
-                        <p className="text-[10px] sm:text-xs text-green-600 font-semibold">R$ {item.preco_unitario.toFixed(2)}</p>
+                        <p className="text-[10px] sm:text-xs text-green-600 font-semibold">R$ {(parseFloat(item.preco_unitario) || 0).toFixed(2)}</p>
                       </div>
                       <Button variant="ghost" size="icon" className="text-red-600 h-6 w-6 flex-shrink-0" onClick={() => removerDoCarrinho(item.produto_id)}>
                         <Trash2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -1379,7 +1288,7 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
                           <Plus className="w-3 h-3" />
                         </Button>
                       </div>
-                      <span className="font-bold text-xs sm:text-sm">R$ {item.subtotal.toFixed(2)}</span>
+                      <span className="font-bold text-xs sm:text-sm">R$ {(parseFloat(item.subtotal) || 0).toFixed(2)}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -1600,7 +1509,7 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className={`grid ${pagamento.forma_pagamento === 'credito_parcelado' ? 'grid-cols-3' : 'grid-cols-2'} gap-3`}>
                     <div>
                       <Label>Forma de Pagamento</Label>
                       <Select
@@ -1608,6 +1517,11 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
                         onValueChange={(value) => {
                           const newPagamentos = [...pagamentos];
                           newPagamentos[index].forma_pagamento = value;
+                          if (value !== 'credito_parcelado') {
+                            newPagamentos[index].parcelas = 1;
+                          } else {
+                            if (newPagamentos[index].parcelas < 2) newPagamentos[index].parcelas = 2;
+                          }
                           setPagamentos(newPagamentos);
                         }}
                       >
@@ -1620,6 +1534,8 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
                           <SelectItem value="cartao_debito">💳 Cartão de Débito</SelectItem>
                           <SelectItem value="pix">🔵 PIX</SelectItem>
                           <SelectItem value="cheque">📄 Cheque</SelectItem>
+                          <SelectItem value="a_prazo">🗓️ A Prazo</SelectItem>
+                          <SelectItem value="credito_parcelado">💳 Crédito Parcelado</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1635,6 +1551,23 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
                         }}
                       />
                     </div>
+
+                    {pagamento.forma_pagamento === 'credito_parcelado' && (
+                      <div>
+                        <Label>Parcelas</Label>
+                        <Input
+                          type="number"
+                          min="2"
+                          max="24"
+                          value={pagamento.parcelas || 2}
+                          onChange={(e) => {
+                            const newPagamentos = [...pagamentos];
+                            newPagamentos[index].parcelas = parseInt(e.target.value) || 2;
+                            setPagamentos(newPagamentos);
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -1979,6 +1912,66 @@ Forma(s) de Pagamento: ${venda.pagamentos.map(p => p.forma_pagamento).join(', ')
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Reimprimir Cupom */}
+      <Dialog open={dialogReimprimir} onOpenChange={(open) => { setDialogReimprimir(open); if (!open) setBuscaReimprimir(""); }}>
+        <DialogContent className="sm:max-w-[550px] max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="w-5 h-5 text-cyan-600" />
+              Reimprimir Cupom
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="Buscar por codigo da venda, cliente ou vendedor..."
+              value={buscaReimprimir}
+              onChange={(e) => setBuscaReimprimir(e.target.value)}
+              autoFocus
+            />
+            <div className="max-h-[50vh] overflow-y-auto space-y-1">
+              {vendasRecentes
+                .filter(v => {
+                  if (!buscaReimprimir) return true;
+                  const termo = buscaReimprimir.toLowerCase();
+                  return (
+                    (v.codigo_venda || '').toLowerCase().includes(termo) ||
+                    (v.cliente_nome || '').toLowerCase().includes(termo) ||
+                    (v.vendedor_nome || '').toLowerCase().includes(termo)
+                  );
+                })
+                .map(v => (
+                  <div
+                    key={v.id}
+                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-slate-50 cursor-pointer transition-colors"
+                    onClick={() => {
+                      imprimirCupomVenda({ ...v, _reimpressao: true });
+                      setDialogReimprimir(false);
+                      setBuscaReimprimir("");
+                    }}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-sm">{v.codigo_venda}</span>
+                        <Badge variant="outline" className="text-xs">
+                          R$ {(parseFloat(v.valor_total) || 0).toFixed(2)}
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        {v.data_venda ? format(new Date(v.data_venda), 'dd/MM/yyyy HH:mm') : '-'} | {v.vendedor_nome || '-'} | {v.cliente_nome || 'Consumidor'}
+                      </div>
+                    </div>
+                    <Printer className="w-4 h-4 text-slate-400 flex-shrink-0 ml-2" />
+                  </div>
+                ))
+              }
+              {vendasRecentes.length === 0 && (
+                <div className="text-center text-slate-400 py-6">Carregando vendas...</div>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -52,8 +52,19 @@ export default function MovimentacaoFinanceira() {
     },
   });
 
+  const { data: movimentacoesCaixa = [] } = useQuery({
+    queryKey: ['movimentacoes-caixa'],
+    queryFn: async () => {
+      try {
+        return await base44.entities.MovimentacaoCaixa.list('-created_date', 500);
+      } catch {
+        return [];
+      }
+    },
+  });
+
   // CRÍTICO: Validação de valores
-  const entradas = vendas
+  const entradasVendas = vendas
     .filter(v => v.status === 'finalizada' && filtrarPorData(v.created_date))
     .map(v => {
       const itens = v.itens || [];
@@ -75,6 +86,24 @@ export default function MovimentacaoFinanceira() {
         codigoVenda: v.codigo_venda
       };
     });
+
+  // CRÍTICO: Incluir Suprimentos de Caixa como Entradas (Dinheiro injetado no Caixa que não veio de Venda)
+  const entradasSuprimentos = movimentacoesCaixa
+    .filter(m => m.tipo === 'suprimento' && filtrarPorData(m.data_hora || m.created_date))
+    .map(m => ({
+      id: 'sup-' + m.id,
+      tipo: 'entrada',
+      valor: parseFloat(m.valor) || 0,
+      descricao: m.descricao || 'Suprimento de Caixa',
+      categoria: 'suprimento',
+      data: m.data_hora || m.created_date,
+      cliente: '-',
+      vendedor: m.usuario_nome || m.usuario || '-',
+      formaPagamento: 'dinheiro',
+      produtos: '-'
+    }));
+
+  const entradas = [...entradasVendas, ...entradasSuprimentos];
 
   // CRÍTICO: Validação de valores e datas - Contas a Pagar
   const saidasContasPagar = contasPagar
@@ -108,7 +137,23 @@ export default function MovimentacaoFinanceira() {
       produtos: '-'
     }));
 
-  const saidas = [...saidasContasPagar, ...saidasComissoes];
+  // CRÍTICO: Incluir Sangrias de Caixa como Saídas (Dinheiro transferido para fora ou usado como despesa)
+  const saidasSangrias = movimentacoesCaixa
+    .filter(m => m.tipo === 'sangria' && filtrarPorData(m.data_hora || m.created_date))
+    .map(m => ({
+      id: 'san-' + m.id,
+      tipo: 'saida',
+      valor: parseFloat(m.valor) || 0,
+      descricao: m.descricao || 'Sangria de Caixa',
+      categoria: 'sangria',
+      data: m.data_hora || m.created_date,
+      cliente: '-',
+      vendedor: m.usuario_nome || m.usuario || '-',
+      formaPagamento: 'dinheiro',
+      produtos: '-'
+    }));
+
+  const saidas = [...saidasContasPagar, ...saidasComissoes, ...saidasSangrias];
 
   const movimentacoes = [...entradas, ...saidas].sort((a, b) => new Date(b.data) - new Date(a.data));
 
