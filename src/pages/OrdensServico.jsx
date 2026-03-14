@@ -2011,7 +2011,7 @@ export default function OrdensServico() {
                   </Button>
                 )}
 
-                {selectedOS.status === 'pronto' && !selectedOS.venda_id && (
+                {selectedOS.status === 'pronto' && !selectedOS.venda_id && selectedOS.status !== 'faturada' && (
                   <div className="grid grid-cols-2 gap-3">
                     <Button
                       onClick={() => updateStatusMutation.mutate({
@@ -2039,7 +2039,7 @@ export default function OrdensServico() {
                     </Button>
                   </div>
                 )}
-                {selectedOS.status === 'entregue' && selectedOS.orcamento && !selectedOS.venda_id && (
+                {selectedOS.status === 'entregue' && selectedOS.orcamento && !selectedOS.venda_id && selectedOS.status !== 'faturada' && (
                   <Button
                     onClick={() => navigate('/pdv', { state: { osToBill: selectedOS } })}
                     className="w-full h-12 bg-green-600 hover:bg-green-700 mt-2 mb-3"
