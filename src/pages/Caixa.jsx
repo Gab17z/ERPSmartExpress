@@ -610,7 +610,7 @@ export default function Caixa() {
   // CORREÇÃO: Calcular valor esperado considerando movimentações (sangrias e suprimentos)
   const valorEsperado = useMemo(() => {
     if (!caixaAberto) return 0;
-    return (caixaAberto.valor_inicial || 0) + totalVendasCaixa + movimentacoesDoCaixa.suprimentos - movimentacoesDoCaixa.sangrias;
+    return (parseFloat(caixaAberto.valor_inicial) || 0) + totalVendasCaixa + movimentacoesDoCaixa.suprimentos - movimentacoesDoCaixa.sangrias;
   }, [caixaAberto, totalVendasCaixa, movimentacoesDoCaixa]);
 
   return (
