@@ -153,9 +153,9 @@ export default function Caixa() {
       }
 
       // CORREÇÃO: Validar se não excede valor em caixa
-      const valorDisponivel = (caixaAberto.valor_inicial || 0) + (resumoCaixa?.dinheiro || 0) + movimentacoesDoCaixa.suprimentos - movimentacoesDoCaixa.sangrias;
+      const valorDisponivel = (parseFloat(caixaAberto.valor_inicial) || 0) + (resumoCaixa?.dinheiro || 0) + movimentacoesDoCaixa.suprimentos - movimentacoesDoCaixa.sangrias;
       if (valorMovimentacao > valorDisponivel) {
-        throw new Error(`Valor da sangria (R$ ${valorMovimentacao.toFixed(2)}) excede o valor disponível em caixa (R$ ${valorDisponivel.toFixed(2)})`);
+        throw new Error(`Valor da sangria (R$ ${parseFloat(valorMovimentacao).toFixed(2)}) excede o valor disponível em caixa (R$ ${parseFloat(valorDisponivel).toFixed(2)})`);
       }
 
       // CORREÇÃO: Exigir aprovação para valores altos
@@ -403,7 +403,7 @@ export default function Caixa() {
         
         <div class="item">
           <span class="bold">Valor Inicial:</span>
-          <span class="bold">R$ ${caixa.valor_inicial.toFixed(2)}</span>
+          <span class="bold">R$ ${(parseFloat(caixa.valor_inicial) || 0).toFixed(2)}</span>
         </div>
         
         <div class="divider"></div>
@@ -507,7 +507,7 @@ export default function Caixa() {
 
         <div class="center" style="margin: 10px 0;">
           <div class="valor-destaque">
-            ${movimentacao.tipo === 'sangria' ? '(-)' : '(+)'} R$ ${movimentacao.valor.toFixed(2)}
+            ${movimentacao.tipo === 'sangria' ? '(-)' : '(+)'} R$ ${(parseFloat(movimentacao.valor) || 0).toFixed(2)}
           </div>
         </div>
 
@@ -716,19 +716,19 @@ export default function Caixa() {
                 <div>
                   <p className="text-sm text-green-700">Valor Inicial</p>
                   <p className="text-lg font-semibold text-green-900">
-                    R$ {caixaAberto.valor_inicial?.toFixed(2) || '0.00'}
+                    R$ {(parseFloat(caixaAberto.valor_inicial) || 0).toFixed(2)}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-green-700">Total em Vendas</p>
                   <p className="text-lg font-semibold text-green-900">
-                    R$ {totalVendasCaixa.toFixed(2)}
+                    R$ {(parseFloat(totalVendasCaixa) || 0).toFixed(2)}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-green-700">Valor Esperado</p>
                   <p className="text-lg font-semibold text-green-900">
-                    R$ {valorEsperado.toFixed(2)}
+                    R$ {(parseFloat(valorEsperado) || 0).toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -741,13 +741,13 @@ export default function Caixa() {
                     {movimentacoesDoCaixa.suprimentos > 0 && (
                       <span className="text-green-700">
                         <ArrowUp className="w-3 h-3 inline mr-1" />
-                        Suprimentos: R$ {movimentacoesDoCaixa.suprimentos.toFixed(2)}
+                        Suprimentos: R$ {(parseFloat(movimentacoesDoCaixa.suprimentos) || 0).toFixed(2)}
                       </span>
                     )}
                     {movimentacoesDoCaixa.sangrias > 0 && (
                       <span className="text-red-600">
                         <ArrowDown className="w-3 h-3 inline mr-1" />
-                        Sangrias: R$ {movimentacoesDoCaixa.sangrias.toFixed(2)}
+                        Sangrias: R$ {(parseFloat(movimentacoesDoCaixa.sangrias) || 0).toFixed(2)}
                       </span>
                     )}
                   </div>
@@ -814,28 +814,28 @@ export default function Caixa() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-lg font-semibold text-green-900">Dinheiro no Caixa:</span>
                   <span className="text-3xl font-bold text-green-700">
-                    R$ {((caixaAberto?.valor_inicial || 0) + (resumoCaixa?.dinheiro || 0) + movimentacoesDoCaixa.suprimentos - movimentacoesDoCaixa.sangrias).toFixed(2)}
+                    R$ {( (parseFloat(caixaAberto?.valor_inicial) || 0) + (parseFloat(resumoCaixa?.dinheiro) || 0) + (parseFloat(movimentacoesDoCaixa.suprimentos) || 0) - (parseFloat(movimentacoesDoCaixa.sangrias) || 0) ).toFixed(2)}
                   </span>
                 </div>
                 <div className="text-xs text-green-700 space-y-0.5">
                   <div className="flex justify-between">
                     <span>Fundo inicial:</span>
-                    <span>R$ {(caixaAberto?.valor_inicial || 0).toFixed(2)}</span>
+                    <span>R$ {(parseFloat(caixaAberto?.valor_inicial) || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>+ Vendas em dinheiro:</span>
-                    <span>R$ {(resumoCaixa?.dinheiro || 0).toFixed(2)}</span>
+                    <span>R$ {(parseFloat(resumoCaixa?.dinheiro) || 0).toFixed(2)}</span>
                   </div>
                   {movimentacoesDoCaixa.suprimentos > 0 && (
                     <div className="flex justify-between text-green-800">
                       <span>+ Suprimentos:</span>
-                      <span>R$ {movimentacoesDoCaixa.suprimentos.toFixed(2)}</span>
+                      <span>R$ {(parseFloat(movimentacoesDoCaixa.suprimentos) || 0).toFixed(2)}</span>
                     </div>
                   )}
                   {movimentacoesDoCaixa.sangrias > 0 && (
                     <div className="flex justify-between text-red-600">
                       <span>- Sangrias:</span>
-                      <span>R$ {movimentacoesDoCaixa.sangrias.toFixed(2)}</span>
+                      <span>R$ {(parseFloat(movimentacoesDoCaixa.sangrias) || 0).toFixed(2)}</span>
                     </div>
                   )}
                 </div>
@@ -892,7 +892,7 @@ export default function Caixa() {
                     </div>
                     <div>
                       <span className="text-slate-500">Valor Inicial:</span>
-                      <p className="font-medium text-green-600">R$ {caixa.valor_inicial?.toFixed(2)}</p>
+                      <p className="font-medium text-green-600">R$ {(parseFloat(caixa.valor_inicial) || 0).toFixed(2)}</p>
                     </div>
                     {caixa.status === 'fechado' && (
                       <>
@@ -902,13 +902,13 @@ export default function Caixa() {
                         </div>
                         <div>
                           <span className="text-slate-500">Valor Final:</span>
-                          <p className="font-medium text-blue-600">R$ {caixa.valor_fechamento?.toFixed(2)}</p>
+                          <p className="font-medium text-blue-600">R$ {(parseFloat(caixa.valor_fechamento) || 0).toFixed(2)}</p>
                         </div>
                         {caixa.diferenca !== 0 && (
                           <div className="col-span-2">
                             <span className="text-slate-500">Diferença:</span>
-                            <p className={`font-bold ${caixa.diferenca > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              R$ {caixa.diferenca?.toFixed(2)}
+                            <p className={`font-bold ${parseFloat(caixa.diferenca) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              R$ {(parseFloat(caixa.diferenca) || 0).toFixed(2)}
                             </p>
                           </div>
                         )}
@@ -1111,13 +1111,13 @@ export default function Caixa() {
                 R$ {valorEsperado.toFixed(2)}
               </p>
               <div className="text-sm text-orange-600 mt-1 space-y-1">
-                <p>Valor inicial: R$ {caixaAberto?.valor_inicial?.toFixed(2) || '0.00'}</p>
-                <p>+ Vendas: R$ {totalVendasCaixa.toFixed(2)}</p>
+                <p>Valor inicial: R$ {(parseFloat(caixaAberto?.valor_inicial) || 0).toFixed(2)}</p>
+                <p>+ Vendas: R$ {(parseFloat(totalVendasCaixa) || 0).toFixed(2)}</p>
                 {movimentacoesDoCaixa.suprimentos > 0 && (
-                  <p>+ Suprimentos: R$ {movimentacoesDoCaixa.suprimentos.toFixed(2)}</p>
+                  <p>+ Suprimentos: R$ {(parseFloat(movimentacoesDoCaixa.suprimentos) || 0).toFixed(2)}</p>
                 )}
                 {movimentacoesDoCaixa.sangrias > 0 && (
-                  <p>- Sangrias: R$ {movimentacoesDoCaixa.sangrias.toFixed(2)}</p>
+                  <p>- Sangrias: R$ {(parseFloat(movimentacoesDoCaixa.sangrias) || 0).toFixed(2)}</p>
                 )}
               </div>
             </div>

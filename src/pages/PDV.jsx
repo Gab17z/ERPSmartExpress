@@ -179,6 +179,14 @@ export default function PDV() {
   useEffect(() => {
     if (location.state?.osToBill) {
       const os = location.state.osToBill;
+      
+      // CRÍTICO: Bloquear se a OS já estiver faturada
+      if (os.status === 'faturada' || os.venda_id) {
+        toast.error("Esta Ordem de Serviço já foi faturada anteriormente.");
+        window.history.replaceState({}, document.title);
+        return;
+      }
+
       setOsVinculada(os); // Salvar referência da OS para vincular à venda
 
       // Preencher cliente — usa cliente_id quando disponível, senão faz fallback pelo nome
@@ -276,6 +284,19 @@ export default function PDV() {
 
   const finalizarVendaMutation = useMutation({
     mutationFn: async (vendaData) => {
+      // CRÍTICO: Se houver OS vinculada, verificar status em tempo real para evitar venda duplicada
+      if (vendaData.os_id) {
+        try {
+          const osStatus = await base44.entities.OrdemServico.get(vendaData.os_id);
+          if (osStatus && (osStatus.status === 'faturada' || osStatus.venda_id)) {
+            throw new Error("ERRO: Esta OS já foi faturada em outra transação!");
+          }
+        } catch (err) {
+          if (err.message.includes("ERRO:")) throw err;
+          console.error("Erro ao validar status da OS:", err);
+        }
+      }
+
       // CORREÇÃO: Buscar dados FRESCOS do banco para evitar cache stale
       const produtosAtualizados = await base44.entities.Produto.list('nome');
       const produtosAtualizadosMap = new Map(produtosAtualizados.map(p => [p.id, p]));
