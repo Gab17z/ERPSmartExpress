@@ -476,7 +476,7 @@ export default function ContasPagar() {
           {contaSelecionada && (
             <div className="p-4 bg-slate-50 rounded">
               <p className="text-sm">Fornecedor: {contaSelecionada.fornecedor_nome}</p>
-              <p className="text-lg font-bold text-red-600">Valor: R$ {(contaSelecionada.valor_total ?? 0).toFixed(2)}</p>
+              <p className="text-lg font-bold text-red-600">Valor: R$ {(parseFloat(contaSelecionada.valor_total) || 0).toFixed(2)}</p>
             </div>
           )}
           <DialogFooter>

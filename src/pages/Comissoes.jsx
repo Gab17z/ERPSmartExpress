@@ -440,9 +440,9 @@ export default function Comissoes() {
                         <TableCell>{format(new Date(com.created_date), 'dd/MM/yyyy HH:mm')}</TableCell>
                         <TableCell className="font-mono text-xs">{getCodigoVenda(com.venda_id)}</TableCell>
                         <TableCell className="font-semibold">{com.vendedor_nome}</TableCell>
-                        <TableCell>R$ {com.valor_venda.toFixed(2)}</TableCell>
+                        <TableCell>R$ {(parseFloat(com.valor_venda) || 0).toFixed(2)}</TableCell>
                         <TableCell><Badge variant="outline">{com.percentual}%</Badge></TableCell>
-                        <TableCell className="font-bold text-green-600">R$ {com.valor_comissao.toFixed(2)}</TableCell>
+                        <TableCell className="font-bold text-green-600">R$ {(parseFloat(com.valor_comissao) || 0).toFixed(2)}</TableCell>
                         <TableCell className="text-right">
                           <Button size="sm" onClick={() => pagarComissaoMutation.mutate(com.id)} className="bg-green-600">
                             <Check className="w-4 h-4 mr-1" />
@@ -492,9 +492,9 @@ export default function Comissoes() {
                         <TableCell>{format(new Date(com.created_date), 'dd/MM/yyyy HH:mm')}</TableCell>
                         <TableCell className="font-mono text-xs">{getCodigoVenda(com.venda_id)}</TableCell>
                         <TableCell className="font-semibold">{com.vendedor_nome}</TableCell>
-                        <TableCell>R$ {com.valor_venda.toFixed(2)}</TableCell>
+                        <TableCell>R$ {(parseFloat(com.valor_venda) || 0).toFixed(2)}</TableCell>
                         <TableCell><Badge variant="outline">{com.percentual}%</Badge></TableCell>
-                        <TableCell className="font-bold text-green-600">R$ {com.valor_comissao.toFixed(2)}</TableCell>
+                        <TableCell className="font-bold text-green-600">R$ {(parseFloat(com.valor_comissao) || 0).toFixed(2)}</TableCell>
                         <TableCell className="text-xs text-slate-500">
                           {com.data_pagamento ? format(new Date(com.data_pagamento), 'dd/MM/yyyy HH:mm') : "-"}
                         </TableCell>
@@ -539,9 +539,9 @@ export default function Comissoes() {
                         <TableCell>{format(new Date(com.created_date), 'dd/MM/yyyy HH:mm')}</TableCell>
                         <TableCell className="font-mono text-xs">{getCodigoVenda(com.venda_id)}</TableCell>
                         <TableCell className="font-semibold">{com.vendedor_nome}</TableCell>
-                        <TableCell>R$ {com.valor_venda.toFixed(2)}</TableCell>
+                        <TableCell>R$ {(parseFloat(com.valor_venda) || 0).toFixed(2)}</TableCell>
                         <TableCell><Badge variant="outline">{com.percentual}%</Badge></TableCell>
-                        <TableCell className="font-bold text-green-600">R$ {com.valor_comissao.toFixed(2)}</TableCell>
+                        <TableCell className="font-bold text-green-600">R$ {(parseFloat(com.valor_comissao) || 0).toFixed(2)}</TableCell>
                         <TableCell>
                           <Badge variant={com.status === 'pago' ? 'default' : 'secondary'} className={com.status === 'pago' ? 'bg-green-600' : 'bg-orange-500'}>
                             {com.status === 'pago' ? 'Pago' : 'Pendente'}

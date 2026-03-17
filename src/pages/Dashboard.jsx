@@ -117,9 +117,9 @@ export default function Dashboard() {
     return dataVenda >= hoje;
   });
 
-  const faturamentoPeriodo = vendasPeriodo.reduce((sum, v) => sum + (v.valor_total || 0), 0);
-  const faturamentoHoje = vendasHoje.reduce((sum, v) => sum + (v.valor_total || 0), 0);
-  const faturamentoTotal = vendasFinalizadas.reduce((sum, v) => sum + (v.valor_total || 0), 0);
+  const faturamentoPeriodo = vendasPeriodo.reduce((sum, v) => sum + (parseFloat(v.valor_total) || 0), 0);
+  const faturamentoHoje = vendasHoje.reduce((sum, v) => sum + (parseFloat(v.valor_total) || 0), 0);
+  const faturamentoTotal = vendasFinalizadas.reduce((sum, v) => sum + (parseFloat(v.valor_total) || 0), 0);
   const ticketMedio = vendasPeriodo.length > 0 ? faturamentoPeriodo / vendasPeriodo.length : 0;
 
   // CRÍTICO: Calcular lucro com validação (incluindo comissões pagas)
@@ -153,7 +153,7 @@ export default function Dashboard() {
   // Mini-dashboard do vendedor: dados pessoais
   const meuId = user?.id;
   const minhasVendasPeriodo = vendasPeriodo.filter(v => v.vendedor_id === meuId);
-  const minhasFaturamentoPeriodo = minhasVendasPeriodo.reduce((sum, v) => sum + (v.valor_total || 0), 0);
+  const minhasFaturamentoPeriodo = minhasVendasPeriodo.reduce((sum, v) => sum + (parseFloat(v.valor_total) || 0), 0);
   const minhasComissoes = comissoes.filter(c => c.vendedor_id === meuId);
   const comissaoPendente = minhasComissoes.filter(c => c.status === 'pendente').reduce((sum, c) => sum + (parseFloat(c.valor_comissao) || 0), 0);
   const comissaoPaga = minhasComissoes.filter(c => c.status === 'pago').reduce((sum, c) => sum + (parseFloat(c.valor_comissao) || 0), 0);
@@ -168,11 +168,11 @@ export default function Dashboard() {
       const vendedor = venda.vendedor_nome || "Sem vendedor";
       if (vendasPorVendedor[vendedor]) {
         vendasPorVendedor[vendedor].quantidade++;
-        vendasPorVendedor[vendedor].valor += venda.valor_total;
+        vendasPorVendedor[vendedor].valor += (parseFloat(venda.valor_total) || 0);
       } else {
         vendasPorVendedor[vendedor] = {
           quantidade: 1,
-          valor: venda.valor_total
+          valor: parseFloat(venda.valor_total) || 0
         };
       }
     });

@@ -63,20 +63,23 @@ export default function AnalisesCurvaABC() {
           margem_lucro: 0
         };
       }
-      analiseABC[item.produto_id].quantidade_vendida += item.quantidade;
-      analiseABC[item.produto_id].receita_total += item.subtotal;
+      const qtd = parseFloat(item.quantidade) || 0;
+      const subtotal = parseFloat(item.subtotal) || 0;
+      analiseABC[item.produto_id].quantidade_vendida += qtd;
+      analiseABC[item.produto_id].receita_total += subtotal;
 
       const produto = produtos.find(p => p.id === item.produto_id);
       if (produto) {
-        const custoItem = (produto.preco_custo || 0) * item.quantidade;
-        
+        const custoItem = (parseFloat(produto.preco_custo) || 0) * qtd;
+
         // CRÍTICO: Calcular proporção de comissão por item
         const comissaoVenda = comissoes.find(c => c.venda_id === venda.id && c.status === 'pago');
         const valorComissaoTotal = comissaoVenda ? (parseFloat(comissaoVenda.valor_comissao) || 0) : 0;
-        const proporcaoItem = venda.valor_total > 0 ? item.subtotal / venda.valor_total : 0;
+        const valorTotalVenda = parseFloat(venda.valor_total) || 0;
+        const proporcaoItem = valorTotalVenda > 0 ? subtotal / valorTotalVenda : 0;
         const comissaoItem = valorComissaoTotal * proporcaoItem;
-        
-        analiseABC[item.produto_id].margem_lucro += (item.subtotal - custoItem - comissaoItem);
+
+        analiseABC[item.produto_id].margem_lucro += (subtotal - custoItem - comissaoItem);
       }
     });
   });
