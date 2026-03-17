@@ -13,8 +13,8 @@ function sanitizeUser(obj) {
   return safe;
 }
 
-// Colunas seguras da tabela usuario (SEM a coluna senha)
-const USUARIO_SAFE_COLUMNS = "id, nome, email, telefone, ativo, created_date, updated_date, foto_url";
+// Nota: Usamos select('*') em vez de colunas explícitas para evitar quebrar
+// se o schema do banco divergir. sanitizeUser() remove campos sensíveis.
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -30,7 +30,7 @@ export function AuthProvider({ children }) {
           // Verificar se o usuário ainda existe no banco (sem trazer senha)
           const { data: usuarioAtual, error } = await supabase
             .from('usuario')
-            .select(USUARIO_SAFE_COLUMNS)
+            .select('*')
             .eq('id', userData.id)
             .maybeSingle();
 
@@ -77,7 +77,7 @@ export function AuthProvider({ children }) {
     // Buscar usuário pelo email (precisa da senha APENAS para validar login)
     const { data: usuarios, error } = await supabase
       .from('usuario')
-      .select(`${USUARIO_SAFE_COLUMNS},senha`)
+      .select('*')
       .eq('email', email.toLowerCase().trim())
       .eq('ativo', true)
       .limit(1);

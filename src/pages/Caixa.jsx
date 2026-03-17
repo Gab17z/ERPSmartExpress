@@ -942,7 +942,7 @@ export default function Caixa() {
                               </div>
                             </div>
                             <span className={`font-bold text-sm ${mov.tipo === 'sangria' ? 'text-red-600' : 'text-green-600'}`}>
-                              {mov.tipo === 'sangria' ? '-' : '+'} R$ {(mov.valor || 0).toFixed(2)}
+                              {mov.tipo === 'sangria' ? '-' : '+'} R$ {(parseFloat(mov.valor) || 0).toFixed(2)}
                             </span>
                           </div>
                         </div>

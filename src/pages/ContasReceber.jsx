@@ -176,7 +176,7 @@ export default function ContasReceber() {
 
   const abrirDialogBaixa = (conta) => {
     setContaSelecionada(conta);
-    const valorPendente = (conta.valor - (conta.valor_pago || 0)).toFixed(2);
+    const valorPendente = ((parseFloat(conta.valor) || 0) - (parseFloat(conta.valor_pago) || 0)).toFixed(2);
     setValorBaixa(formatarValorBRL(valorPendente.replace('.', '')));
     setDialogBaixa(true);
   };

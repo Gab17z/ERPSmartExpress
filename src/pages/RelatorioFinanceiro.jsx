@@ -225,7 +225,7 @@ export default function RelatorioFinanceiro() {
         'Receita',
         `Venda ${v.codigo_venda}`,
         'Venda',
-        (v.valor_total || 0).toFixed(2),
+        (parseFloat(v.valor_total) || 0).toFixed(2),
         v.status
       ]),
       ...contasRecebidasPeriodo.map(c => [
@@ -233,7 +233,7 @@ export default function RelatorioFinanceiro() {
         'Receita',
         c.descricao,
         'Conta a Receber',
-        (c.valor_recebido || c.valor_total || 0).toFixed(2),
+        (parseFloat(c.valor_recebido || c.valor_total) || 0).toFixed(2),
         c.situacao
       ]),
       ...contasPagasPeriodo.map(c => [
@@ -241,7 +241,7 @@ export default function RelatorioFinanceiro() {
         'Despesa',
         c.descricao,
         c.categoria,
-        (c.valor_total || 0).toFixed(2),
+        (parseFloat(c.valor_total) || 0).toFixed(2),
         c.situacao
       ]),
       ...comissoesPagasPeriodo.map(c => [
@@ -249,7 +249,7 @@ export default function RelatorioFinanceiro() {
         'Despesa',
         `Comissão - ${c.vendedor_nome}`,
         'comissões',
-        (c.valor_comissao || 0).toFixed(2),
+        (parseFloat(c.valor_comissao) || 0).toFixed(2),
         'pago'
       ]),
       // CORREÇÃO: Incluir sangrias e suplementos na exportação
@@ -295,14 +295,14 @@ export default function RelatorioFinanceiro() {
         'Receita',
         `Venda ${v.codigo_venda}`,
         'Venda',
-        `R$ ${(v.valor_total || 0).toFixed(2)}`
+        `R$ ${(parseFloat(v.valor_total) || 0).toFixed(2)}`
       ]),
       ...contasPagasPeriodo.map(c => [
         format(new Date(c.data_pagamento), 'dd/MM/yyyy'),
         'Despesa',
         c.descricao,
         c.categoria,
-        `R$ ${(c.valor_total || 0).toFixed(2)}`
+        `R$ ${(parseFloat(c.valor_total) || 0).toFixed(2)}`
       ])
     ];
 
@@ -647,7 +647,7 @@ export default function RelatorioFinanceiro() {
                       <TableCell className="text-sm">{conta.descricao}</TableCell>
                       <TableCell><Badge variant="outline">{conta.categoria}</Badge></TableCell>
                       <TableCell>{format(new Date(conta.data_vencimento), 'dd/MM/yyyy')}</TableCell>
-                      <TableCell className="font-bold text-red-600">R$ {(conta.valor_total || 0).toFixed(2)}</TableCell>
+                      <TableCell className="font-bold text-red-600">R$ {(parseFloat(conta.valor_total) || 0).toFixed(2)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

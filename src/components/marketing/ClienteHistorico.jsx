@@ -77,7 +77,7 @@ export default function ClienteHistorico({ cliente, vendas, open, onClose }) {
                             {venda.codigo_venda}
                           </Badge>
                           <Badge className="bg-green-600 text-white">
-                            R$ {venda.valor_total?.toFixed(2)}
+                            R$ {(parseFloat(venda.valor_total) || 0).toFixed(2)}
                           </Badge>
                         </div>
                         <div className="flex items-center gap-3 text-sm text-slate-600">
@@ -100,7 +100,7 @@ export default function ClienteHistorico({ cliente, vendas, open, onClose }) {
                             {item.quantidade}x {item.produto_nome}
                           </span>
                           <span className="font-semibold">
-                            R$ {item.subtotal?.toFixed(2)}
+                            R$ {(parseFloat(item.subtotal) || 0).toFixed(2)}
                           </span>
                         </div>
                       ))}
@@ -115,7 +115,7 @@ export default function ClienteHistorico({ cliente, vendas, open, onClose }) {
                       <div className="flex flex-wrap gap-2">
                         {venda.pagamentos?.map((pag, idx) => (
                           <Badge key={idx} variant="secondary" className="text-xs">
-                            {FORMAS_PAGAMENTO[pag.forma_pagamento] || pag.forma_pagamento} - R$ {pag.valor?.toFixed(2)}
+                            {FORMAS_PAGAMENTO[pag.forma_pagamento] || pag.forma_pagamento} - R$ {(parseFloat(pag.valor) || 0).toFixed(2)}
                             {pag.parcelas > 1 && ` (${pag.parcelas}x)`}
                           </Badge>
                         ))}
