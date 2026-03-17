@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -77,6 +77,8 @@ export default function Produtos() {
   const [uploading, setUploading] = useState(false);
   const [ordenacao, setOrdenacao] = useState({ campo: null, direcao: 'asc' });
   const [tipoFiltro, setTipoFiltro] = useState("todos");
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const ITENS_POR_PAGINA = 50;
   const [configuracoes, setConfiguracoes] = useState(null);
   const [capturandoFoto, setCapturandoFoto] = useState(false);
   const [streamAtivo, setStreamAtivo] = useState(null);
@@ -126,16 +128,19 @@ export default function Produtos() {
   const { data: produtos = [], isLoading } = useQuery({
     queryKey: ['produtos'],
     queryFn: () => base44.entities.Produto.list('-created_date'),
+    staleTime: 2 * 60 * 1000, // 2 minutos sem refetch
   });
 
   const { data: categorias = [] } = useQuery({
     queryKey: ['categorias'],
     queryFn: () => base44.entities.Categoria.list('nome'),
+    staleTime: 5 * 60 * 1000, // 5 minutos
   });
 
   const { data: marcas = [] } = useQuery({
     queryKey: ['marcas'],
     queryFn: () => base44.entities.Marca.list('nome'),
+    staleTime: 5 * 60 * 1000, // 5 minutos
   });
 
   const createMutation = useMutation({
@@ -897,57 +902,69 @@ export default function Produtos() {
     }));
   };
 
-  const filteredProdutos = produtos
-    .filter((p) => p.ativo !== false) // Ocultar produtos inativos (excluídos logicamente)
-    .filter((p) => {
-      // Filtro por tipo (Todos/Produtos/Peças)
-      if (tipoFiltro === "pecas") {
-        return p.categoria === 'peças_de_reposição';
-      } else if (tipoFiltro === "produtos") {
-        return p.categoria !== 'peças_de_reposição';
-      }
-      return true; // "todos"
-    })
-    .filter((p) =>
-      p.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.marca_nome?.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .sort((a, b) => {
-      if (!ordenacao.campo) return 0;
+  const searchTermLower = searchTerm.toLowerCase();
 
-      let valorA = a[ordenacao.campo];
-      let valorB = b[ordenacao.campo];
+  const filteredProdutos = useMemo(() => {
+    return produtos
+      .filter((p) => p.ativo !== false)
+      .filter((p) => {
+        if (tipoFiltro === "pecas") {
+          return p.categoria === 'peças_de_reposição';
+        } else if (tipoFiltro === "produtos") {
+          return p.categoria !== 'peças_de_reposição';
+        }
+        return true;
+      })
+      .filter((p) =>
+        p.nome?.toLowerCase().includes(searchTermLower) ||
+        p.sku?.toLowerCase().includes(searchTermLower) ||
+        p.marca_nome?.toLowerCase().includes(searchTermLower)
+      )
+      .sort((a, b) => {
+        if (!ordenacao.campo) return 0;
 
-      // Tratamento especial para campos numéricos
-      if (['preco_venda', 'estoque_atual', 'margem_lucro'].includes(ordenacao.campo)) {
-        valorA = parseFloat(valorA) || 0;
-        valorB = parseFloat(valorB) || 0;
-      } else if (ordenacao.campo === 'sku') {
-        // SKU: tentar converter para número, se não conseguir usar como string
-        const numA = parseInt(valorA);
-        const numB = parseInt(valorB);
-        if (!isNaN(numA) && !isNaN(numB)) {
-          valorA = numA;
-          valorB = numB;
+        let valorA = a[ordenacao.campo];
+        let valorB = b[ordenacao.campo];
+
+        if (['preco_venda', 'estoque_atual', 'margem_lucro'].includes(ordenacao.campo)) {
+          valorA = parseFloat(valorA) || 0;
+          valorB = parseFloat(valorB) || 0;
+        } else if (ordenacao.campo === 'sku') {
+          const numA = parseInt(valorA);
+          const numB = parseInt(valorB);
+          if (!isNaN(numA) && !isNaN(numB)) {
+            valorA = numA;
+            valorB = numB;
+          } else {
+            valorA = (valorA || '').toString().toLowerCase();
+            valorB = (valorB || '').toString().toLowerCase();
+          }
         } else {
           valorA = (valorA || '').toString().toLowerCase();
           valorB = (valorB || '').toString().toLowerCase();
         }
-      } else {
-        // Campos de texto
-        valorA = (valorA || '').toString().toLowerCase();
-        valorB = (valorB || '').toString().toLowerCase();
-      }
 
-      if (valorA < valorB) return ordenacao.direcao === 'asc' ? -1 : 1;
-      if (valorA > valorB) return ordenacao.direcao === 'asc' ? 1 : -1;
-      return 0;
-    });
+        if (valorA < valorB) return ordenacao.direcao === 'asc' ? -1 : 1;
+        if (valorA > valorB) return ordenacao.direcao === 'asc' ? 1 : -1;
+        return 0;
+      });
+  }, [produtos, tipoFiltro, searchTermLower, ordenacao]);
 
-  const produtosBaixoEstoque = produtos.filter(p =>
-    p.estoque_atual <= p.estoque_minimo && p.ativo
-  );
+  // Paginação
+  const totalPaginas = Math.ceil(filteredProdutos.length / ITENS_POR_PAGINA);
+  const produtosPaginados = useMemo(() => {
+    const inicio = (paginaAtual - 1) * ITENS_POR_PAGINA;
+    return filteredProdutos.slice(inicio, inicio + ITENS_POR_PAGINA);
+  }, [filteredProdutos, paginaAtual]);
+
+  // Reset paginação ao filtrar/buscar
+  React.useEffect(() => {
+    setPaginaAtual(1);
+  }, [searchTerm, tipoFiltro, ordenacao]);
+
+  const produtosBaixoEstoque = useMemo(() => {
+    return produtos.filter(p => p.estoque_atual <= p.estoque_minimo && p.ativo);
+  }, [produtos]);
 
   return (
     <div className="p-6 space-y-6">
@@ -1117,13 +1134,15 @@ export default function Produtos() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredProdutos.map((produto) => (
+                {produtosPaginados.map((produto) => (
                   <TableRow key={produto.id} className="hover:bg-slate-50">
                     <TableCell className="p-2">
                       {produto.imagem_url ? (
                         <img
                           src={produto.imagem_url}
                           alt={produto.nome}
+                          loading="lazy"
+                          decoding="async"
                           className="w-12 h-12 object-cover rounded-lg border"
                         />
                       ) : (
@@ -1174,6 +1193,56 @@ export default function Produtos() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Paginação */}
+          {totalPaginas > 1 && (
+            <div className="flex items-center justify-between pt-4">
+              <p className="text-sm text-slate-500">
+                Mostrando {((paginaAtual - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(paginaAtual * ITENS_POR_PAGINA, filteredProdutos.length)} de {filteredProdutos.length} produtos
+              </p>
+              <div className="flex gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={paginaAtual === 1}
+                  onClick={() => setPaginaAtual(1)}
+                >
+                  Primeira
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={paginaAtual === 1}
+                  onClick={() => setPaginaAtual(p => p - 1)}
+                >
+                  Anterior
+                </Button>
+                <span className="flex items-center px-3 text-sm text-slate-600">
+                  {paginaAtual} / {totalPaginas}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={paginaAtual === totalPaginas}
+                  onClick={() => setPaginaAtual(p => p + 1)}
+                >
+                  Próxima
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={paginaAtual === totalPaginas}
+                  onClick={() => setPaginaAtual(totalPaginas)}
+                >
+                  Última
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {filteredProdutos.length === 0 && !isLoading && (
+            <p className="text-center text-slate-500 py-8">Nenhum produto encontrado.</p>
+          )}
         </CardContent>
       </Card>
 
