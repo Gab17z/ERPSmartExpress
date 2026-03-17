@@ -11,6 +11,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
+        id: '/',
         name: 'Smart Express',
         short_name: 'SmartExpress',
         description: 'Sistema ERP para lojas de celular',
@@ -38,6 +39,22 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
+          }
+        ],
+        screenshots: [
+          {
+            src: 'screenshot-desktop.png',
+            sizes: '1280x720',
+            type: 'image/png',
+            form_factor: 'wide',
+            label: 'Smart Express - Dashboard Desktop'
+          },
+          {
+            src: 'screenshot-mobile.png',
+            sizes: '750x1334',
+            type: 'image/png',
+            form_factor: 'narrow',
+            label: 'Smart Express - Dashboard Mobile'
           }
         ]
       },
