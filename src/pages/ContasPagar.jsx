@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, AlertCircle, Clock, DollarSign, Repeat } from "lucide-react";
+import { Plus, AlertCircle, Clock, DollarSign, Repeat, ChevronLeft, ChevronRight } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format, isAfter, isBefore, startOfDay } from "date-fns";
@@ -26,6 +26,8 @@ export default function ContasPagar() {
   const [buscaTexto, setBuscaTexto] = useState("");
   const [filtroCategoria, setFiltroCategoria] = useState("todos");
   const [filtroSituacao, setFiltroSituacao] = useState("todos");
+  const [paginaTab, setPaginaTab] = useState({ vencidas: 1, hoje: 1, futuras: 1, todas: 1, comissoes: 1 });
+  const ITENS_POR_PAGINA = 20;
   const [formData, setFormData] = useState({
     fornecedor_id: "",
     fornecedor_nome: "",
@@ -130,14 +132,24 @@ export default function ContasPagar() {
   };
 
   const baixarMutation = useMutation({
-    mutationFn: ({ id }) => base44.entities.ContaPagar.update(id, {
-      status: "pago",
-      data_pagamento: new Date().toISOString().split('T')[0]
-    }),
+    mutationFn: async ({ id }) => {
+      // CRÍTICO: Verificar status atual antes de pagar (evitar pagamento duplo)
+      const contaAtual = await base44.entities.ContaPagar.get(id);
+      if (contaAtual.status === "pago") {
+        throw new Error(`Esta conta já foi paga em ${contaAtual.data_pagamento || 'data desconhecida'}.`);
+      }
+      return base44.entities.ContaPagar.update(id, {
+        status: "pago",
+        data_pagamento: new Date().toISOString().split('T')[0]
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contas-pagar'] });
       toast.success("Conta paga!");
       setDialogBaixa(false);
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao pagar conta.");
     },
   });
 
@@ -219,7 +231,7 @@ export default function ContasPagar() {
             <Input
               placeholder="Buscar por fornecedor ou descrição..."
               value={buscaTexto}
-              onChange={(e) => setBuscaTexto(e.target.value)}
+              onChange={(e) => { setBuscaTexto(e.target.value); setPaginaTab({ vencidas: 1, hoje: 1, futuras: 1, todas: 1, comissoes: 1 }); }}
               className="flex-1 min-w-[250px]"
             />
             <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
@@ -269,6 +281,9 @@ export default function ContasPagar() {
             return matchBusca && matchCategoria && matchSituacao;
           });
 
+          const pag = paginaTab[tab] || 1;
+          const totalPaginas = Math.ceil(lista.length / ITENS_POR_PAGINA);
+
           return (
             <TabsContent key={tab} value={tab}>
               <Card>
@@ -286,7 +301,7 @@ export default function ContasPagar() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {lista.map((conta) => (
+                      {lista.slice((pag - 1) * ITENS_POR_PAGINA, pag * ITENS_POR_PAGINA).map((conta) => (
                         <TableRow key={conta.id}>
                           <TableCell>{conta.fornecedor_nome}</TableCell>
                           <TableCell>{conta.descricao}</TableCell>
@@ -316,6 +331,22 @@ export default function ContasPagar() {
                       )}
                     </TableBody>
                   </Table>
+                  {totalPaginas > 1 && (
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                      <span className="text-sm text-slate-500">
+                        Mostrando {((pag - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(pag * ITENS_POR_PAGINA, lista.length)} de {lista.length}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" disabled={pag <= 1} onClick={() => setPaginaTab(prev => ({ ...prev, [tab]: prev[tab] - 1 }))}>
+                          <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <span className="text-sm font-medium px-2">{pag} / {totalPaginas}</span>
+                        <Button variant="outline" size="sm" disabled={pag >= totalPaginas} onClick={() => setPaginaTab(prev => ({ ...prev, [tab]: prev[tab] + 1 }))}>
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -351,7 +382,7 @@ export default function ContasPagar() {
                       c.vendedor_nome?.toLowerCase().includes(buscaTexto.toLowerCase()) ||
                       'comissão'.includes(buscaTexto.toLowerCase());
                     return matchBusca;
-                  }).map((comissao) => (
+                  }).slice(((paginaTab.comissoes || 1) - 1) * ITENS_POR_PAGINA, (paginaTab.comissoes || 1) * ITENS_POR_PAGINA).map((comissao) => (
                     <TableRow key={`comissao-${comissao.id}`} className="bg-purple-50/50">
                       <TableCell className="font-medium">{comissao.vendedor_nome || 'Vendedor'}</TableCell>
                       <TableCell>Comissão - Venda #{comissao.venda_id?.slice(0, 8)}</TableCell>
@@ -476,7 +507,7 @@ export default function ContasPagar() {
           {contaSelecionada && (
             <div className="p-4 bg-slate-50 rounded">
               <p className="text-sm">Fornecedor: {contaSelecionada.fornecedor_nome}</p>
-              <p className="text-lg font-bold text-red-600">Valor: R$ {(parseFloat(contaSelecionada.valor_total) || 0).toFixed(2)}</p>
+              <p className="text-lg font-bold text-red-600">Valor: R$ {(parseFloat(contaSelecionada.valor) || 0).toFixed(2)}</p>
             </div>
           )}
           <DialogFooter>

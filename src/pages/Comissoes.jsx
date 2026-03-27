@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DollarSign, TrendingUp, Users, Check, Download, BarChart3, CheckCircle, Clock, AlertCircle, Filter } from "lucide-react";
+import { DollarSign, TrendingUp, Users, Check, Download, BarChart3, CheckCircle, Clock, AlertCircle, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { exportToPDF } from "@/utils/pdfExport";
@@ -37,6 +37,10 @@ export default function Comissoes() {
     dataFim: format(hoje, 'yyyy-MM-dd')
   });
   const [vendedorSelecionado, setVendedorSelecionado] = useState("todos");
+  const [paginaPendentes, setPaginaPendentes] = useState(1);
+  const [paginaPagas, setPaginaPagas] = useState(1);
+  const [paginaTodas, setPaginaTodas] = useState(1);
+  const ITENS_POR_PAGINA = 15;
 
   const filtrarPorData = (data) => {
     if (!data) return false;
@@ -184,6 +188,35 @@ export default function Comissoes() {
       console.error('Erro ao exportar PDF:', error);
       toast.error('Erro ao exportar PDF');
     }
+  };
+
+  const paginar = (lista, pagina) => {
+    const inicio = (pagina - 1) * ITENS_POR_PAGINA;
+    return lista.slice(inicio, inicio + ITENS_POR_PAGINA);
+  };
+
+  const totalPaginasPendentes = Math.ceil(comissoesPendentes.length / ITENS_POR_PAGINA);
+  const totalPaginasPagas = Math.ceil(comissoesPagas.length / ITENS_POR_PAGINA);
+  const totalPaginasTodas = Math.ceil(comissoesFiltradas.length / ITENS_POR_PAGINA);
+
+  const PaginacaoControle = ({ pagina, setPagina, totalPaginas, totalItens }) => {
+    if (totalPaginas <= 1) return null;
+    return (
+      <div className="flex items-center justify-between mt-4 pt-4 border-t">
+        <span className="text-sm text-slate-500">
+          Mostrando {((pagina - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(pagina * ITENS_POR_PAGINA, totalItens)} de {totalItens}
+        </span>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" disabled={pagina <= 1} onClick={() => setPagina(p => p - 1)}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <span className="text-sm font-medium px-2">{pagina} / {totalPaginas}</span>
+          <Button variant="outline" size="sm" disabled={pagina >= totalPaginas} onClick={() => setPagina(p => p + 1)}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -435,7 +468,7 @@ export default function Comissoes() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    comissoesPendentes.map((com) => (
+                    paginar(comissoesPendentes, paginaPendentes).map((com) => (
                       <TableRow key={com.id} className="hover:bg-orange-50">
                         <TableCell>{format(new Date(com.created_date), 'dd/MM/yyyy HH:mm')}</TableCell>
                         <TableCell className="font-mono text-xs">{getCodigoVenda(com.venda_id)}</TableCell>
@@ -454,6 +487,7 @@ export default function Comissoes() {
                   )}
                 </TableBody>
               </Table>
+              <PaginacaoControle pagina={paginaPendentes} setPagina={setPaginaPendentes} totalPaginas={totalPaginasPendentes} totalItens={comissoesPendentes.length} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -487,7 +521,7 @@ export default function Comissoes() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    comissoesPagas.map((com) => (
+                    paginar(comissoesPagas, paginaPagas).map((com) => (
                       <TableRow key={com.id} className="hover:bg-green-50">
                         <TableCell>{format(new Date(com.created_date), 'dd/MM/yyyy HH:mm')}</TableCell>
                         <TableCell className="font-mono text-xs">{getCodigoVenda(com.venda_id)}</TableCell>
@@ -503,6 +537,7 @@ export default function Comissoes() {
                   )}
                 </TableBody>
               </Table>
+              <PaginacaoControle pagina={paginaPagas} setPagina={setPaginaPagas} totalPaginas={totalPaginasPagas} totalItens={comissoesPagas.length} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -534,7 +569,7 @@ export default function Comissoes() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    comissoesFiltradas.map((com) => (
+                    paginar(comissoesFiltradas, paginaTodas).map((com) => (
                       <TableRow key={com.id} className="hover:bg-slate-50">
                         <TableCell>{format(new Date(com.created_date), 'dd/MM/yyyy HH:mm')}</TableCell>
                         <TableCell className="font-mono text-xs">{getCodigoVenda(com.venda_id)}</TableCell>
@@ -555,6 +590,7 @@ export default function Comissoes() {
                   )}
                 </TableBody>
               </Table>
+              <PaginacaoControle pagina={paginaTodas} setPagina={setPaginaTodas} totalPaginas={totalPaginasTodas} totalItens={comissoesFiltradas.length} />
             </CardContent>
           </Card>
         </TabsContent>

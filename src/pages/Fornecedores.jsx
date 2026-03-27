@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Edit, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Search, Edit, Trash2, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { formatarCNPJDigitando, formatarTelefoneDigitando } from "@/components/FormatUtils";
 import CEPInput from "@/components/CEPInput";
@@ -35,6 +35,8 @@ export default function Fornecedores() {
   const [editingFornecedor, setEditingFornecedor] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [configuracoes, setConfiguracoes] = useState(null);
+  const [pagina, setPagina] = useState(1);
+  const ITENS_POR_PAGINA = 20;
 
   const [formData, setFormData] = useState({
     nome_fantasia: "",
@@ -106,7 +108,15 @@ export default function Fornecedores() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => base44.entities.Fornecedor.delete(id),
+    mutationFn: async (id) => {
+      // CRÍTICO: Verificar se há produtos vinculados antes de excluir
+      const produtos = await base44.entities.Produto.list();
+      const vinculados = produtos.filter(p => p.fornecedor_id === id);
+      if (vinculados.length > 0) {
+        throw new Error(`Não é possível excluir: ${vinculados.length} produto(s) vinculado(s) a este fornecedor.`);
+      }
+      return base44.entities.Fornecedor.delete(id);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fornecedores'] });
       toast.success("Fornecedor excluído!");
@@ -115,7 +125,7 @@ export default function Fornecedores() {
     },
     onError: (error) => {
       console.error("Erro ao excluir fornecedor:", error);
-      toast.error("Erro ao excluir fornecedor.");
+      toast.error(error.message || "Erro ao excluir fornecedor.");
     }
   });
 
@@ -256,7 +266,7 @@ export default function Fornecedores() {
               <Input
                 placeholder="Buscar por nome, razão social ou CNPJ..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => { setSearchTerm(e.target.value); setPagina(1); }}
                 className="pl-10"
               />
             </div>
@@ -276,7 +286,7 @@ export default function Fornecedores() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredFornecedores.map((fornecedor) => (
+                {filteredFornecedores.slice((pagina - 1) * ITENS_POR_PAGINA, pagina * ITENS_POR_PAGINA).map((fornecedor) => (
                   <TableRow key={fornecedor.id} className="hover:bg-slate-50">
                     <TableCell className="font-medium">{fornecedor.nome_fantasia}</TableCell>
                     <TableCell className="font-mono text-sm">{fornecedor.cnpj}</TableCell>
@@ -317,6 +327,23 @@ export default function Fornecedores() {
               </TableBody>
             </Table>
           </div>
+
+          {Math.ceil(filteredFornecedores.length / ITENS_POR_PAGINA) > 1 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+              <span className="text-sm text-slate-500">
+                Mostrando {((pagina - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(pagina * ITENS_POR_PAGINA, filteredFornecedores.length)} de {filteredFornecedores.length}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={pagina <= 1} onClick={() => setPagina(p => p - 1)}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span className="text-sm font-medium px-2">{pagina} / {Math.ceil(filteredFornecedores.length / ITENS_POR_PAGINA)}</span>
+                <Button variant="outline" size="sm" disabled={pagina >= Math.ceil(filteredFornecedores.length / ITENS_POR_PAGINA)} onClick={() => setPagina(p => p + 1)}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
 
           {!podeExcluirGlobal && (
             <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">

@@ -17,6 +17,7 @@ import {
   Building2,
   Calendar,
   RefreshCw,
+  ChevronLeft,
   ChevronRight,
   AlertCircle,
   CheckCircle,
@@ -68,6 +69,8 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 export default function Financeiro() {
   const [periodo, setPeriodo] = useState("30");
   const [activeTab, setActiveTab] = useState("visao-geral");
+  const [paginaVencidas, setPaginaVencidas] = useState(1);
+  const ITENS_POR_PAGINA = 20;
 
   // Queries
   const { data: vendas = [], isLoading: loadingVendas } = useQuery({
@@ -142,9 +145,14 @@ export default function Financeiro() {
       .filter(c => c.status === 'pendente' && isSameDay(new Date(c.data_vencimento), hoje))
       .reduce((sum, c) => sum + (c.valor || 0), 0);
 
-    // Saldo em caixa
+    // Saldo em caixa (calculado a partir dos campos reais - saldo_atual não existe na tabela)
     const caixaAberto = caixas.find(c => c.status === 'aberto');
-    const saldoCaixa = caixaAberto?.saldo_atual || 0;
+    const saldoCaixa = caixaAberto
+      ? (parseFloat(caixaAberto.valor_inicial) || 0) +
+        (parseFloat(caixaAberto.total_vendas) || 0) +
+        (parseFloat(caixaAberto.total_suprimentos) || 0) -
+        (parseFloat(caixaAberto.total_sangrias) || 0)
+      : 0;
 
     // Saldo bancario
     const saldoBancario = contasBancarias.reduce((sum, c) => sum + (c.saldo || 0), 0);
@@ -193,7 +201,7 @@ export default function Financeiro() {
     vendasPeriodo.forEach(v => {
       if (v.pagamentos && Array.isArray(v.pagamentos)) {
         v.pagamentos.forEach(p => {
-          const forma = p.forma || 'outros';
+          const forma = p.forma_pagamento || p.forma || 'outros';
           if (!formasPagamento[forma]) {
             formasPagamento[forma] = { valor: 0, count: 0 };
           }
@@ -248,11 +256,14 @@ export default function Financeiro() {
     const mapa = {
       dinheiro: 'Dinheiro',
       pix: 'PIX',
-      credito: 'Cartao Credito',
-      credito_parcelado: 'Credito Parcelado',
-      debito: 'Cartao Debito',
+      cartao_credito: 'Cartão Crédito',
+      cartao_debito: 'Cartão Débito',
+      credito: 'Cartão Crédito',
+      credito_parcelado: 'Créd. Parcelado',
+      debito: 'Cartão Débito',
+      cheque: 'Cheque',
       boleto: 'Boleto',
-      transferencia: 'Transferencia',
+      transferencia: 'Transferência',
       a_prazo: 'A Prazo',
       outros: 'Outros'
     };
@@ -279,7 +290,7 @@ export default function Financeiro() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Financeiro</h1>
-          <p className="text-gray-500 mt-1">Visao consolidada das financas da empresa</p>
+          <p className="text-gray-500 mt-1">Visão consolidada das finanças da empresa</p>
         </div>
         <div className="flex gap-2">
           <Select value={periodo} onValueChange={setPeriodo}>
@@ -287,11 +298,11 @@ export default function Financeiro() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="7">Ultimos 7 dias</SelectItem>
-              <SelectItem value="15">Ultimos 15 dias</SelectItem>
-              <SelectItem value="30">Ultimos 30 dias</SelectItem>
-              <SelectItem value="60">Ultimos 60 dias</SelectItem>
-              <SelectItem value="90">Ultimos 90 dias</SelectItem>
+              <SelectItem value="7">Últimos 7 dias</SelectItem>
+              <SelectItem value="15">Últimos 15 dias</SelectItem>
+              <SelectItem value="30">Últimos 30 dias</SelectItem>
+              <SelectItem value="60">Últimos 60 dias</SelectItem>
+              <SelectItem value="90">Últimos 90 dias</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -299,85 +310,81 @@ export default function Financeiro() {
 
       {/* KPIs Principais */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+        <Card className="border-l-4 border-l-green-500 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-white to-green-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <TrendingUp className="w-12 h-12 text-green-600 bg-green-100 p-2.5 rounded-xl shadow-sm" />
               <div>
-                <p className="text-sm font-medium text-gray-500">Faturamento</p>
+                <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold">Faturamento Líquido</p>
                 <p className="text-2xl font-bold text-green-600">
                   {formatarMoeda(dadosFinanceiros.faturamentoLiquido)}
                 </p>
-              </div>
-              <div className="p-3 bg-green-100 rounded-full">
-                <TrendingUp className="w-6 h-6 text-green-600" />
+                <p className="text-xs text-slate-500 mt-1">
+                  {dadosFinanceiros.totalVendas} vendas | Ticket: {formatarMoeda(dadosFinanceiros.ticketMedio)}
+                </p>
               </div>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              {dadosFinanceiros.totalVendas} vendas | Ticket: {formatarMoeda(dadosFinanceiros.ticketMedio)}
-            </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+        <Card className="border-l-4 border-l-blue-500 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-white to-blue-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <ArrowDownRight className="w-12 h-12 text-blue-600 bg-blue-100 p-2.5 rounded-xl shadow-sm" />
               <div>
-                <p className="text-sm font-medium text-gray-500">A Receber</p>
+                <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold">A Receber</p>
                 <p className="text-2xl font-bold text-blue-600">
                   {formatarMoeda(dadosFinanceiros.receberPendente)}
                 </p>
-              </div>
-              <div className="p-3 bg-blue-100 rounded-full">
-                <ArrowDownRight className="w-6 h-6 text-blue-600" />
+                {dadosFinanceiros.receberVencido > 0 ? (
+                  <p className="text-xs text-red-500 mt-1">
+                    <AlertCircle className="w-3 h-3 inline mr-1" />
+                    {formatarMoeda(dadosFinanceiros.receberVencido)} vencido
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-500 mt-1">Nenhuma conta vencida</p>
+                )}
               </div>
             </div>
-            {dadosFinanceiros.receberVencido > 0 && (
-              <p className="text-xs text-red-500 mt-2">
-                <AlertCircle className="w-3 h-3 inline mr-1" />
-                {formatarMoeda(dadosFinanceiros.receberVencido)} vencido
-              </p>
-            )}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+        <Card className="border-l-4 border-l-red-500 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-white to-red-50">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <ArrowUpRight className="w-12 h-12 text-red-600 bg-red-100 p-2.5 rounded-xl shadow-sm" />
               <div>
-                <p className="text-sm font-medium text-gray-500">A Pagar</p>
+                <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold">A Pagar</p>
                 <p className="text-2xl font-bold text-red-600">
                   {formatarMoeda(dadosFinanceiros.pagarPendente)}
                 </p>
-              </div>
-              <div className="p-3 bg-red-100 rounded-full">
-                <ArrowUpRight className="w-6 h-6 text-red-600" />
+                {dadosFinanceiros.pagarVencido > 0 ? (
+                  <p className="text-xs text-red-500 mt-1">
+                    <AlertCircle className="w-3 h-3 inline mr-1" />
+                    {formatarMoeda(dadosFinanceiros.pagarVencido)} vencido
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-500 mt-1">Nenhuma conta vencida</p>
+                )}
               </div>
             </div>
-            {dadosFinanceiros.pagarVencido > 0 && (
-              <p className="text-xs text-red-500 mt-2">
-                <AlertCircle className="w-3 h-3 inline mr-1" />
-                {formatarMoeda(dadosFinanceiros.pagarVencido)} vencido
-              </p>
-            )}
           </CardContent>
         </Card>
 
-        <Card className={dadosFinanceiros.saldoTotal >= 0 ? 'border-green-200' : 'border-red-200'}>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+        <Card className={`border-l-4 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br ${dadosFinanceiros.saldoTotal >= 0 ? 'border-l-emerald-500 from-white to-emerald-50' : 'border-l-orange-500 from-white to-orange-50'}`}>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <Wallet className={`w-12 h-12 p-2.5 rounded-xl shadow-sm ${dadosFinanceiros.saldoTotal >= 0 ? 'text-emerald-600 bg-emerald-100' : 'text-orange-600 bg-orange-100'}`} />
               <div>
-                <p className="text-sm font-medium text-gray-500">Saldo Total</p>
-                <p className={`text-2xl font-bold ${dadosFinanceiros.saldoTotal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold">Saldo Total</p>
+                <p className={`text-2xl font-bold ${dadosFinanceiros.saldoTotal >= 0 ? 'text-emerald-600' : 'text-orange-600'}`}>
                   {formatarMoeda(dadosFinanceiros.saldoTotal)}
                 </p>
-              </div>
-              <div className={`p-3 rounded-full ${dadosFinanceiros.saldoTotal >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
-                <Wallet className={`w-6 h-6 ${dadosFinanceiros.saldoTotal >= 0 ? 'text-green-600' : 'text-red-600'}`} />
+                <p className="text-xs text-slate-500 mt-1">
+                  Caixa: {formatarMoeda(dadosFinanceiros.saldoCaixa)} | Banco: {formatarMoeda(dadosFinanceiros.saldoBancario)}
+                </p>
               </div>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Caixa: {formatarMoeda(dadosFinanceiros.saldoCaixa)} | Banco: {formatarMoeda(dadosFinanceiros.saldoBancario)}
-            </p>
           </CardContent>
         </Card>
       </div>
@@ -385,10 +392,15 @@ export default function Financeiro() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="visao-geral">Visao Geral</TabsTrigger>
+          <TabsTrigger value="visao-geral">Visão Geral</TabsTrigger>
           <TabsTrigger value="fluxo">Fluxo de Caixa</TabsTrigger>
-          <TabsTrigger value="vencidas">Contas Vencidas</TabsTrigger>
-          <TabsTrigger value="acessos">Acessos Rapidos</TabsTrigger>
+          <TabsTrigger value="vencidas">
+            Contas Vencidas
+            {contasVencidas.length > 0 && (
+              <Badge variant="destructive" className="ml-2 text-xs">{contasVencidas.length}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="acessos">Acessos Rápidos</TabsTrigger>
         </TabsList>
 
         {/* Visao Geral */}
@@ -397,8 +409,8 @@ export default function Financeiro() {
             {/* Grafico de Evolucao */}
             <Card>
               <CardHeader>
-                <CardTitle>Evolucao do Faturamento</CardTitle>
-                <CardDescription>Ultimos {periodo} dias</CardDescription>
+                <CardTitle>Evolução do Faturamento</CardTitle>
+                <CardDescription>Últimos {periodo} dias</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -426,7 +438,7 @@ export default function Financeiro() {
             <Card>
               <CardHeader>
                 <CardTitle>Formas de Pagamento</CardTitle>
-                <CardDescription>Distribuicao no periodo</CardDescription>
+                <CardDescription>Distribuição no período</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -451,11 +463,11 @@ export default function Financeiro() {
             </Card>
           </div>
 
-          {/* Previsao Proximos 7 Dias */}
+          {/* Previsão Próximos 7 Dias */}
           <Card>
             <CardHeader>
-              <CardTitle>Previsao Proximos 7 Dias</CardTitle>
-              <CardDescription>Entradas e saidas previstas</CardDescription>
+              <CardTitle>Previsão Próximos 7 Dias</CardTitle>
+              <CardDescription>Entradas e saídas previstas</CardDescription>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
@@ -477,7 +489,7 @@ export default function Financeiro() {
         <TabsContent value="fluxo">
           <Card>
             <CardHeader>
-              <CardTitle>Fluxo de Caixa - Proximos 7 Dias</CardTitle>
+              <CardTitle>Fluxo de Caixa - Próximos 7 Dias</CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -531,43 +543,61 @@ export default function Financeiro() {
                   <p>Nenhuma conta vencida!</p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Descricao</TableHead>
-                      <TableHead>Vencimento</TableHead>
-                      <TableHead>Dias Atrasados</TableHead>
-                      <TableHead className="text-right">Valor</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {contasVencidas.slice(0, 20).map((conta) => {
-                      const diasAtrasados = Math.floor(
-                        (new Date() - new Date(conta.data_vencimento)) / (1000 * 60 * 60 * 24)
-                      );
-                      return (
-                        <TableRow key={conta.id}>
-                          <TableCell>
-                            <Badge variant={conta.tipo === 'receber' ? 'default' : 'destructive'}>
-                              {conta.tipo === 'receber' ? 'Receber' : 'Pagar'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{conta.descricao || '-'}</TableCell>
-                          <TableCell>
-                            {format(new Date(conta.data_vencimento), 'dd/MM/yyyy')}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="destructive">{diasAtrasados} dias</Badge>
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {formatarMoeda(conta.valor)}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead>Vencimento</TableHead>
+                        <TableHead>Dias em Atraso</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {contasVencidas.slice((paginaVencidas - 1) * ITENS_POR_PAGINA, paginaVencidas * ITENS_POR_PAGINA).map((conta) => {
+                        const diasAtrasados = Math.floor(
+                          (new Date() - new Date(conta.data_vencimento)) / (1000 * 60 * 60 * 24)
+                        );
+                        return (
+                          <TableRow key={conta.id}>
+                            <TableCell>
+                              <Badge variant={conta.tipo === 'receber' ? 'default' : 'destructive'}>
+                                {conta.tipo === 'receber' ? 'Receber' : 'Pagar'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{conta.descricao || '-'}</TableCell>
+                            <TableCell>
+                              {format(new Date(conta.data_vencimento), 'dd/MM/yyyy')}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="destructive">{diasAtrasados} dias</Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatarMoeda(conta.valor)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                  {Math.ceil(contasVencidas.length / ITENS_POR_PAGINA) > 1 && (
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                      <span className="text-sm text-slate-500">
+                        Mostrando {((paginaVencidas - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(paginaVencidas * ITENS_POR_PAGINA, contasVencidas.length)} de {contasVencidas.length}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" disabled={paginaVencidas <= 1} onClick={() => setPaginaVencidas(p => p - 1)}>
+                          <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <span className="text-sm font-medium px-2">{paginaVencidas} / {Math.ceil(contasVencidas.length / ITENS_POR_PAGINA)}</span>
+                        <Button variant="outline" size="sm" disabled={paginaVencidas >= Math.ceil(contasVencidas.length / ITENS_POR_PAGINA)} onClick={() => setPaginaVencidas(p => p + 1)}>
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
@@ -577,24 +607,24 @@ export default function Financeiro() {
         <TabsContent value="acessos">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
-              { title: 'Contas a Receber', icon: ArrowDownRight, url: 'ContasReceber', color: 'blue', desc: 'Gerenciar recebimentos' },
-              { title: 'Contas a Pagar', icon: ArrowUpRight, url: 'ContasPagar', color: 'red', desc: 'Gerenciar pagamentos' },
-              { title: 'Fluxo de Caixa', icon: TrendingUp, url: 'FluxoCaixa', color: 'green', desc: 'Projecao financeira' },
-              { title: 'Contas Bancarias', icon: Building2, url: 'ContasBancarias', color: 'purple', desc: 'Saldos e movimentacoes' },
-              { title: 'Centro de Custos', icon: PieChartIcon, url: 'CentroCustos', color: 'orange', desc: 'Analise por categoria' },
-              { title: 'Conciliacao', icon: CheckCircle, url: 'ConciliacaoBancaria', color: 'cyan', desc: 'Conferencia bancaria' },
-              { title: 'Contas Recorrentes', icon: RefreshCw, url: 'ContasRecorrentes', color: 'pink', desc: 'Despesas fixas' },
-              { title: 'DRE', icon: BarChart3, url: 'DRE', color: 'indigo', desc: 'Demonstrativo de resultados' },
-              { title: 'Movimentacao', icon: Receipt, url: 'MovimentacaoFinanceira', color: 'teal', desc: 'Historico de lancamentos' },
+              { title: 'Contas a Receber', icon: ArrowDownRight, url: 'ContasReceber', bg: 'bg-blue-100', text: 'text-blue-600', desc: 'Gerenciar recebimentos' },
+              { title: 'Contas a Pagar', icon: ArrowUpRight, url: 'ContasPagar', bg: 'bg-red-100', text: 'text-red-600', desc: 'Gerenciar pagamentos' },
+              { title: 'Fluxo de Caixa', icon: TrendingUp, url: 'FluxoCaixa', bg: 'bg-green-100', text: 'text-green-600', desc: 'Projeção financeira' },
+              { title: 'Contas Bancárias', icon: Building2, url: 'ContasBancarias', bg: 'bg-purple-100', text: 'text-purple-600', desc: 'Saldos e movimentações' },
+              { title: 'Centro de Custos', icon: PieChartIcon, url: 'CentroCustos', bg: 'bg-orange-100', text: 'text-orange-600', desc: 'Análise por categoria' },
+              { title: 'Conciliação', icon: CheckCircle, url: 'ConciliacaoBancaria', bg: 'bg-cyan-100', text: 'text-cyan-600', desc: 'Conferência bancária' },
+              { title: 'Contas Recorrentes', icon: RefreshCw, url: 'ContasRecorrentes', bg: 'bg-pink-100', text: 'text-pink-600', desc: 'Despesas fixas' },
+              { title: 'DRE', icon: BarChart3, url: 'DRE', bg: 'bg-indigo-100', text: 'text-indigo-600', desc: 'Demonstrativo de resultados' },
+              { title: 'Movimentação', icon: Receipt, url: 'MovimentacaoFinanceira', bg: 'bg-teal-100', text: 'text-teal-600', desc: 'Histórico de lançamentos' },
             ].map((item) => {
               const IconComponent = item.icon;
               return (
                 <Link key={item.url} to={createPageUrl(item.url)}>
-                  <Card className="hover:border-blue-300 transition-colors cursor-pointer h-full">
+                  <Card className="hover:border-blue-300 hover:shadow-md transition-all cursor-pointer h-full">
                     <CardContent className="pt-6">
                       <div className="flex items-center gap-4">
-                        <div className={`p-3 bg-${item.color}-100 rounded-full`}>
-                          <IconComponent className={`w-6 h-6 text-${item.color}-600`} />
+                        <div className={`p-3 ${item.bg} rounded-xl`}>
+                          <IconComponent className={`w-6 h-6 ${item.text}`} />
                         </div>
                         <div className="flex-1">
                           <h3 className="font-semibold">{item.title}</h3>

@@ -461,6 +461,29 @@ export default function PDV() {
         console.error("Erro crítico ao lançar transações no caixa:", error);
       }
 
+      // CRÍTICO: Criar Conta a Receber para vendas A Prazo
+      try {
+        const pagamentosAPrazo = (venda.pagamentos || []).filter(p => p.forma_pagamento === 'a_prazo');
+        if (pagamentosAPrazo.length > 0 && vendaData.cliente_id) {
+          const valorAPrazo = pagamentosAPrazo.reduce((sum, p) => sum + (parseFloat(p.valor) || 0), 0);
+          const dataVencimento = new Date();
+          dataVencimento.setDate(dataVencimento.getDate() + 30); // Vencimento padrão: 30 dias
+
+          await base44.entities.ContaReceber.create({
+            cliente_id: vendaData.cliente_id,
+            cliente_nome: vendaData.cliente_nome,
+            descricao: `Venda A Prazo - ${venda.codigo_venda}`,
+            valor: valorAPrazo,
+            valor_pago: 0,
+            status: "pendente",
+            data_vencimento: dataVencimento.toISOString().split('T')[0],
+            venda_id: venda.id
+          });
+        }
+      } catch (error) {
+        console.error("Erro ao criar conta a receber para venda a prazo:", error);
+      }
+
       // ENVIAR EMAIL DE NOVA VENDA
       try {
         const config = JSON.parse(localStorage.getItem('configuracoes_erp') || '{}');
@@ -708,20 +731,38 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
 
   const aplicarDesconto = (percentual) => {
     const subtotalAtual = calcularSubtotal();
-    if (subtotalAtual === 0 || percentual === 0) {
-      setDescontoPercentual(percentual);
+    // CRÍTICO: Bloquear valores negativos e acima de 100
+    const percentualLimitado = Math.max(0, Math.min(percentual, 100));
+
+    if (subtotalAtual === 0 || percentualLimitado === 0) {
+      setDescontoPercentual(percentualLimitado);
       return true;
     }
-
-    // Limitar a 100%
-    const percentualLimitado = Math.min(percentual, 100);
     const limiteDesconto = configuracoes?.pdv?.solicitar_senha_desconto_acima || 10;
     const exigeSenha = configuracoes?.pdv?.exigir_senha_desconto !== false;
 
     if (exigeSenha && percentualLimitado > limiteDesconto) {
       setDescontoTemporario(percentualLimitado);
+      setDescontoPercentual(0); // CRÍTICO: Reseta desconto até ser autorizado
       setDialogSenhaDesconto(true);
       return false;
+    }
+
+    // Registrar log de desconto dentro do limite (sem necessidade de autorização)
+    try {
+      const valorDesconto = (subtotalAtual * percentualLimitado) / 100;
+      base44.entities.LogDesconto.create({
+        venda_id: null,
+        usuario_id: user?.id,
+        usuario_nome: user?.nome || "N/A",
+        percentual_desconto: percentualLimitado,
+        valor_desconto: valorDesconto,
+        motivo: "Desconto dentro do limite permitido",
+        aprovador_nome: user?.nome || "N/A",
+        aprovador_id: user?.id,
+      });
+    } catch (e) {
+      console.error("Erro ao registrar log de desconto:", e);
     }
 
     setDescontoPercentual(percentualLimitado);
@@ -1335,11 +1376,13 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
                       max="100"
                       value={descontoPercentual}
                       onChange={(e) => {
-                        const valor = parseFloat(e.target.value) || 0;
-                        setDescontoPercentual(Math.min(valor, 100));
-                      }}
-                      onBlur={() => {
-                        aplicarDesconto(descontoPercentual);
+                        const valor = Math.max(0, Math.min(parseFloat(e.target.value) || 0, 100));
+                        // Aplica validação imediatamente (não esperar onBlur)
+                        const aplicou = aplicarDesconto(valor);
+                        if (!aplicou) {
+                          // Se não aplicou (precisa autorização), não muda o valor
+                          // aplicarDesconto já reseta para 0 e abre dialog
+                        }
                       }}
                       className="w-20 sm:w-24 h-7 sm:h-8 text-right text-xs sm:text-sm pr-6"
                     />
@@ -1685,7 +1728,15 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
         </DialogContent>
       </Dialog>
 
-      <Dialog open={dialogSenhaDesconto} onOpenChange={setDialogSenhaDesconto}>
+      <Dialog open={dialogSenhaDesconto} onOpenChange={(open) => {
+          if (!open) {
+            // CRÍTICO: Reseta tudo ao fechar sem autorizar (X, clique fora, ESC)
+            setDescontoPercentual(0);
+            setDescontoTemporario(0);
+            setCodigoBarrasDigitado("");
+          }
+          setDialogSenhaDesconto(open);
+        }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Autorização Necessária</DialogTitle>

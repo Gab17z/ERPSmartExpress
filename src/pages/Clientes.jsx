@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
@@ -41,7 +41,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, Edit, Eye, Phone, Mail, MapPin, Trash2, Loader2 } from "lucide-react";
+import { Plus, Search, Edit, Eye, Phone, Mail, MapPin, Trash2, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import CEPInput from "@/components/CEPInput";
 import { formatarTelefone, formatarTelefoneDigitando, formatarCPF, formatarCNPJ, formatarCPFCNPJDigitando, validarCPF, capitalizarNome } from "@/components/FormatUtils";
@@ -50,6 +50,8 @@ export default function Clientes() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
+  const [pagina, setPagina] = useState(1);
+  const ITENS_POR_PAGINA = 20;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedCliente, setSelectedCliente] = useState(null);
   const [formData, setFormData] = useState({
@@ -384,7 +386,7 @@ export default function Clientes() {
               <Input
                 placeholder="Buscar por nome, CPF/CNPJ ou telefone..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => { setSearchTerm(e.target.value); setPagina(1); }}
                 className="pl-10"
               />
             </div>
@@ -405,7 +407,7 @@ export default function Clientes() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredClientes.map((cliente) => {
+                {filteredClientes.slice((pagina - 1) * ITENS_POR_PAGINA, pagina * ITENS_POR_PAGINA).map((cliente) => {
                   const comprasCliente = vendas.filter(v => v.cliente_id === cliente.id && v.status === 'finalizada');
                   const totalGasto = comprasCliente.reduce((sum, v) => sum + (parseFloat(v.valor_total) || 0), 0);
                   const score = Math.min(100, Math.floor((comprasCliente.length * 10) + (totalGasto / 100)));
@@ -501,6 +503,23 @@ export default function Clientes() {
               </TableBody>
             </Table>
           </div>
+
+          {Math.ceil(filteredClientes.length / ITENS_POR_PAGINA) > 1 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+              <span className="text-sm text-slate-500">
+                Mostrando {((pagina - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(pagina * ITENS_POR_PAGINA, filteredClientes.length)} de {filteredClientes.length}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={pagina <= 1} onClick={() => setPagina(p => p - 1)}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span className="text-sm font-medium px-2">{pagina} / {Math.ceil(filteredClientes.length / ITENS_POR_PAGINA)}</span>
+                <Button variant="outline" size="sm" disabled={pagina >= Math.ceil(filteredClientes.length / ITENS_POR_PAGINA)} onClick={() => setPagina(p => p + 1)}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
 
           {!podeExcluir && (
             <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">

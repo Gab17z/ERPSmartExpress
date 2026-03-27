@@ -255,7 +255,7 @@ const navigationItems = [
     permissions: ["administrador_sistema"], // Apenas super admin
     submenu: [
       { title: "Sistema", url: createPageUrl("Configuracoes") },
-      { title: "Cupom Fiscal", url: createPageUrl("ConfiguracaoCupom") },
+
       { title: "Logs", url: createPageUrl("Logs") },
     ]
   }

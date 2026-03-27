@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Plus, DollarSign, AlertCircle, CheckCircle2, Clock, Loader2, ChevronsUpDown, Check } from "lucide-react";
+import { Plus, DollarSign, AlertCircle, CheckCircle2, Clock, Loader2, ChevronsUpDown, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, isAfter, isBefore, startOfDay } from "date-fns";
@@ -26,6 +26,8 @@ export default function ContasReceber() {
   const [valorBaixa, setValorBaixa] = useState("");
   const [buscaTexto, setBuscaTexto] = useState("");
   const [filtroSituacao, setFiltroSituacao] = useState("todos");
+  const [paginaTab, setPaginaTab] = useState({ vencidas: 1, hoje: 1, futuras: 1, todas: 1 });
+  const ITENS_POR_PAGINA = 20;
   const [formData, setFormData] = useState({
     cliente_id: "",
     cliente_nome: "",
@@ -148,7 +150,7 @@ export default function ContasReceber() {
       return await base44.entities.ContaReceber.update(id, {
         valor_pago: novoValorRecebido,
         status: novaSituacao,
-        data_pagamento: novaSituacao === "pago" ? new Date().toISOString().split('T')[0] : contaAtual.data_pagamento
+        data_pagamento: novaSituacao === "pago" ? new Date().toISOString().split('T')[0] : (contaAtual.data_pagamento || null)
       });
     },
     onSuccess: () => {
@@ -248,7 +250,7 @@ export default function ContasReceber() {
             <Input
               placeholder="Buscar por cliente ou descrição..."
               value={buscaTexto}
-              onChange={(e) => setBuscaTexto(e.target.value)}
+              onChange={(e) => { setBuscaTexto(e.target.value); setPaginaTab({ vencidas: 1, hoje: 1, futuras: 1, todas: 1 }); }}
               className="flex-1 min-w-[250px]"
             />
             <Select value={filtroSituacao} onValueChange={setFiltroSituacao}>
@@ -284,6 +286,9 @@ export default function ContasReceber() {
             return matchBusca && matchSituacao;
           });
           
+          const pag = paginaTab[tab] || 1;
+          const totalPaginas = Math.ceil(lista.length / ITENS_POR_PAGINA);
+
           return (
             <TabsContent key={tab} value={tab}>
               <Card>
@@ -301,12 +306,12 @@ export default function ContasReceber() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {lista.map((conta) => (
+                      {lista.slice((pag - 1) * ITENS_POR_PAGINA, pag * ITENS_POR_PAGINA).map((conta) => (
                         <TableRow key={conta.id}>
                           <TableCell>{conta.cliente_nome}</TableCell>
                           <TableCell>{conta.descricao}</TableCell>
                           <TableCell>{format(new Date(conta.data_vencimento), 'dd/MM/yyyy')}</TableCell>
-                          <TableCell className="font-semibold">R$ {conta.valor?.toFixed(2)}</TableCell>
+                          <TableCell className="font-semibold">R$ {(parseFloat(conta.valor) || 0).toFixed(2)}</TableCell>
                           <TableCell>R$ {(conta.valor_pago || 0).toFixed(2)}</TableCell>
                           <TableCell>
                             <Badge variant={conta.status === "pago" ? "default" : conta.status === "parcial" ? "secondary" : "destructive"}>
@@ -324,6 +329,22 @@ export default function ContasReceber() {
                       ))}
                     </TableBody>
                   </Table>
+                  {totalPaginas > 1 && (
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                      <span className="text-sm text-slate-500">
+                        Mostrando {((pag - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(pag * ITENS_POR_PAGINA, lista.length)} de {lista.length}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" disabled={pag <= 1} onClick={() => setPaginaTab(prev => ({ ...prev, [tab]: prev[tab] - 1 }))}>
+                          <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <span className="text-sm font-medium px-2">{pag} / {totalPaginas}</span>
+                        <Button variant="outline" size="sm" disabled={pag >= totalPaginas} onClick={() => setPaginaTab(prev => ({ ...prev, [tab]: prev[tab] + 1 }))}>
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

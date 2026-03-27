@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Shield, DollarSign, X, RefreshCw, CreditCard, Lock, Unlock, Database, Package, Settings, ShoppingCart } from "lucide-react";
+import { Shield, DollarSign, X, RefreshCw, CreditCard, Lock, Unlock, Database, Package, Settings, ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { format, isWithinInterval, parseISO, startOfMonth, startOfDay, endOfDay } from "date-fns";
 import DateRangeFilter from "@/components/DateRangeFilter";
 
@@ -15,6 +16,8 @@ export default function Logs() {
     dataInicio: format(startOfMonth(hoje), 'yyyy-MM-dd'),
     dataFim: format(hoje, 'yyyy-MM-dd')
   });
+  const [paginaTab, setPaginaTab] = useState({ auditoria: 1, vendas: 1, estoque: 1, cancelamentos: 1, descontos: 1, caixa: 1, config: 1 });
+  const ITENS_POR_PAGINA = 20;
 
   const filtrarPorData = (data) => {
     try {
@@ -94,7 +97,7 @@ export default function Logs() {
 
   const descontosFiltrados = logsDesconto.filter(log => filtrarPorData(log.created_date));
   const movimentacoesFiltradas = movimentacoesEstoque.filter(mov => filtrarPorData(mov.data_movimentacao));
-  const vendasFiltradas = vendas.filter(v => v.status === 'finalizada' && filtrarPorData(v.data_venda));
+  const vendasFiltradas = vendas.filter(v => v.status === 'finalizada' && filtrarPorData(v.data_venda || v.created_date));
   const logsConfiguracao = logsFiltrados.filter(l => l.recurso === 'Configuracao' || l.acao?.includes('config'));
 
   return (
@@ -104,7 +107,7 @@ export default function Logs() {
         <p className="text-slate-500">Auditoria completa de operações</p>
       </div>
 
-      <DateRangeFilter onFilterChange={setFiltro} />
+      <DateRangeFilter onFilterChange={(f) => { setFiltro(f); setPaginaTab({ auditoria: 1, vendas: 1, estoque: 1, cancelamentos: 1, descontos: 1, caixa: 1, config: 1 }); }} />
 
       <Tabs defaultValue="auditoria">
         <TabsList className="grid w-full grid-cols-7">
@@ -137,7 +140,7 @@ export default function Logs() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {logsFiltrados.slice(0, 100).map((log) => (
+                  {logsFiltrados.slice((paginaTab.auditoria - 1) * ITENS_POR_PAGINA, paginaTab.auditoria * ITENS_POR_PAGINA).map((log) => (
                     <TableRow key={log.id}>
                       <TableCell className="text-xs">{format(new Date(log.data_hora), 'dd/MM/yyyy HH:mm')}</TableCell>
                       <TableCell>{log.usuario_nome}</TableCell>
@@ -148,8 +151,25 @@ export default function Logs() {
                       <TableCell className="text-sm">{log.descricao}</TableCell>
                     </TableRow>
                   ))}
+                  {logsFiltrados.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-slate-500 py-8">
+                        Nenhum log de auditoria neste período
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
+              {Math.ceil(logsFiltrados.length / ITENS_POR_PAGINA) > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <span className="text-sm text-slate-500">Mostrando {((paginaTab.auditoria - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(paginaTab.auditoria * ITENS_POR_PAGINA, logsFiltrados.length)} de {logsFiltrados.length}</span>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={paginaTab.auditoria <= 1} onClick={() => setPaginaTab(p => ({ ...p, auditoria: p.auditoria - 1 }))}><ChevronLeft className="w-4 h-4" /></Button>
+                    <span className="text-sm font-medium px-2">{paginaTab.auditoria} / {Math.ceil(logsFiltrados.length / ITENS_POR_PAGINA)}</span>
+                    <Button variant="outline" size="sm" disabled={paginaTab.auditoria >= Math.ceil(logsFiltrados.length / ITENS_POR_PAGINA)} onClick={() => setPaginaTab(p => ({ ...p, auditoria: p.auditoria + 1 }))}><ChevronRight className="w-4 h-4" /></Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -175,13 +195,13 @@ export default function Logs() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {vendasFiltradas.filter(v => v.status === 'finalizada').map((venda) => (
+                  {vendasFiltradas.filter(v => v.status === 'finalizada').slice((paginaTab.vendas - 1) * ITENS_POR_PAGINA, paginaTab.vendas * ITENS_POR_PAGINA).map((venda) => (
                     <TableRow key={venda.id}>
                       <TableCell className="font-mono text-xs">{venda.codigo_venda}</TableCell>
                       <TableCell className="text-xs">{venda.data_venda ? format(new Date(venda.data_venda), 'dd/MM/yyyy HH:mm') : format(new Date(venda.created_date), 'dd/MM/yyyy HH:mm')}</TableCell>
                       <TableCell className="text-sm">{venda.cliente_nome || 'N/A'}</TableCell>
                       <TableCell className="text-sm">{venda.vendedor_nome}</TableCell>
-                      <TableCell className="font-semibold text-green-600">R$ {venda.valor_total?.toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold text-green-600">R$ {(parseFloat(venda.valor_total) || 0).toFixed(2)}</TableCell>
                       <TableCell className="text-xs">
                         {venda.pagamentos?.map((p, i) => (
                           <Badge key={i} variant="outline" className="mr-1">
@@ -191,8 +211,25 @@ export default function Logs() {
                       </TableCell>
                     </TableRow>
                   ))}
+                  {vendasFiltradas.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-slate-500 py-8">
+                        Nenhuma venda registrada neste período
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
+              {Math.ceil(vendasFiltradas.filter(v => v.status === 'finalizada').length / ITENS_POR_PAGINA) > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <span className="text-sm text-slate-500">Mostrando {((paginaTab.vendas - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(paginaTab.vendas * ITENS_POR_PAGINA, vendasFiltradas.length)} de {vendasFiltradas.filter(v => v.status === 'finalizada').length}</span>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={paginaTab.vendas <= 1} onClick={() => setPaginaTab(p => ({ ...p, vendas: p.vendas - 1 }))}><ChevronLeft className="w-4 h-4" /></Button>
+                    <span className="text-sm font-medium px-2">{paginaTab.vendas} / {Math.ceil(vendasFiltradas.filter(v => v.status === 'finalizada').length / ITENS_POR_PAGINA)}</span>
+                    <Button variant="outline" size="sm" disabled={paginaTab.vendas >= Math.ceil(vendasFiltradas.filter(v => v.status === 'finalizada').length / ITENS_POR_PAGINA)} onClick={() => setPaginaTab(p => ({ ...p, vendas: p.vendas + 1 }))}><ChevronRight className="w-4 h-4" /></Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -219,7 +256,7 @@ export default function Logs() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {movimentacoesEstoque.filter(mov => filtrarPorData(mov.data_movimentacao)).map((mov) => (
+                  {movimentacoesFiltradas.slice((paginaTab.estoque - 1) * ITENS_POR_PAGINA, paginaTab.estoque * ITENS_POR_PAGINA).map((mov) => (
                     <TableRow key={mov.id}>
                       <TableCell className="text-xs">{format(new Date(mov.data_movimentacao), 'dd/MM/yyyy HH:mm')}</TableCell>
                       <TableCell>
@@ -234,8 +271,25 @@ export default function Logs() {
                       <TableCell className="text-sm">{mov.usuario_responsavel}</TableCell>
                     </TableRow>
                   ))}
+                  {movimentacoesFiltradas.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-slate-500 py-8">
+                        Nenhuma movimentação de estoque neste período
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
+              {Math.ceil(movimentacoesFiltradas.length / ITENS_POR_PAGINA) > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <span className="text-sm text-slate-500">Mostrando {((paginaTab.estoque - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(paginaTab.estoque * ITENS_POR_PAGINA, movimentacoesFiltradas.length)} de {movimentacoesFiltradas.length}</span>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={paginaTab.estoque <= 1} onClick={() => setPaginaTab(p => ({ ...p, estoque: p.estoque - 1 }))}><ChevronLeft className="w-4 h-4" /></Button>
+                    <span className="text-sm font-medium px-2">{paginaTab.estoque} / {Math.ceil(movimentacoesFiltradas.length / ITENS_POR_PAGINA)}</span>
+                    <Button variant="outline" size="sm" disabled={paginaTab.estoque >= Math.ceil(movimentacoesFiltradas.length / ITENS_POR_PAGINA)} onClick={() => setPaginaTab(p => ({ ...p, estoque: p.estoque + 1 }))}><ChevronRight className="w-4 h-4" /></Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -259,7 +313,7 @@ export default function Logs() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {logsFiltrados.filter(l => l.recurso === 'Configuracao' || l.descricao?.includes('configurações') || l.acao?.includes('config')).map((log) => (
+                  {logsFiltrados.filter(l => l.recurso === 'Configuracao' || l.descricao?.includes('configurações') || l.acao?.includes('config')).slice((paginaTab.config - 1) * ITENS_POR_PAGINA, paginaTab.config * ITENS_POR_PAGINA).map((log) => (
                     <TableRow key={log.id}>
                       <TableCell className="text-xs">{format(new Date(log.data_hora), 'dd/MM/yyyy HH:mm')}</TableCell>
                       <TableCell>{log.usuario_nome}</TableCell>
@@ -304,17 +358,34 @@ export default function Logs() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {vendasCanceladas.map((venda) => (
+                  {vendasCanceladas.slice((paginaTab.cancelamentos - 1) * ITENS_POR_PAGINA, paginaTab.cancelamentos * ITENS_POR_PAGINA).map((venda) => (
                     <TableRow key={venda.id}>
                       <TableCell className="font-mono">{venda.codigo_venda}</TableCell>
                       <TableCell className="text-xs">{format(new Date(venda.data_cancelamento), 'dd/MM/yyyy HH:mm')}</TableCell>
                       <TableCell>{venda.cancelada_por}</TableCell>
-                      <TableCell className="font-semibold text-red-600">R$ {venda.valor_total.toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold text-red-600">R$ {(parseFloat(venda.valor_total) || 0).toFixed(2)}</TableCell>
                       <TableCell className="text-sm">{venda.motivo_cancelamento}</TableCell>
                     </TableRow>
                   ))}
+                  {vendasCanceladas.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-slate-500 py-8">
+                        Nenhuma venda cancelada neste período
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
+              {Math.ceil(vendasCanceladas.length / ITENS_POR_PAGINA) > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <span className="text-sm text-slate-500">Mostrando {((paginaTab.cancelamentos - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(paginaTab.cancelamentos * ITENS_POR_PAGINA, vendasCanceladas.length)} de {vendasCanceladas.length}</span>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={paginaTab.cancelamentos <= 1} onClick={() => setPaginaTab(p => ({ ...p, cancelamentos: p.cancelamentos - 1 }))}><ChevronLeft className="w-4 h-4" /></Button>
+                    <span className="text-sm font-medium px-2">{paginaTab.cancelamentos} / {Math.ceil(vendasCanceladas.length / ITENS_POR_PAGINA)}</span>
+                    <Button variant="outline" size="sm" disabled={paginaTab.cancelamentos >= Math.ceil(vendasCanceladas.length / ITENS_POR_PAGINA)} onClick={() => setPaginaTab(p => ({ ...p, cancelamentos: p.cancelamentos + 1 }))}><ChevronRight className="w-4 h-4" /></Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -322,7 +393,7 @@ export default function Logs() {
         <TabsContent value="descontos">
           <Card>
             <CardHeader>
-              <CardTitle>Autorizações de Desconto ({logsDesconto.filter(log => filtrarPorData(log.data_hora)).length})</CardTitle>
+              <CardTitle>Descontos Aplicados ({descontosFiltrados.length})</CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -332,26 +403,49 @@ export default function Logs() {
                     <TableHead>Vendedor</TableHead>
                     <TableHead>Venda</TableHead>
                     <TableHead>Desconto</TableHead>
-                    <TableHead>Autorizado Por</TableHead>
+                    <TableHead>Aprovador</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {logsDesconto.filter(log => filtrarPorData(log.created_date)).map((log) => (
+                  {descontosFiltrados.slice((paginaTab.descontos - 1) * ITENS_POR_PAGINA, paginaTab.descontos * ITENS_POR_PAGINA).map((log) => (
                     <TableRow key={log.id}>
                       <TableCell className="text-xs">{format(new Date(log.created_date), 'dd/MM/yyyy HH:mm')}</TableCell>
                       <TableCell>{log.usuario_nome}</TableCell>
                       <TableCell className="font-mono">{log.venda_id || 'N/A'}</TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-semibold text-orange-600">R$ {log.valor_desconto?.toFixed(2)}</p>
-                          <p className="text-xs text-slate-500">{log.percentual_desconto?.toFixed(1)}%</p>
+                          <p className="font-semibold text-orange-600">R$ {(parseFloat(log.valor_desconto) || 0).toFixed(2)}</p>
+                          <p className="text-xs text-slate-500">{(parseFloat(log.percentual_desconto) || 0).toFixed(1)}%</p>
                         </div>
                       </TableCell>
-                      <TableCell className="font-medium">{log.aprovador_nome}</TableCell>
+                      <TableCell className="font-medium">
+                        {log.motivo?.includes('dentro do limite') ? (
+                          <Badge variant="outline" className="text-xs">Dentro do limite</Badge>
+                        ) : (
+                          <span className="text-orange-600">{log.aprovador_nome}</span>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
+                  {descontosFiltrados.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-slate-500 py-8">
+                        Nenhuma autorização de desconto registrada neste período
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
+              {Math.ceil(descontosFiltrados.length / ITENS_POR_PAGINA) > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <span className="text-sm text-slate-500">Mostrando {((paginaTab.descontos - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(paginaTab.descontos * ITENS_POR_PAGINA, descontosFiltrados.length)} de {descontosFiltrados.length}</span>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={paginaTab.descontos <= 1} onClick={() => setPaginaTab(p => ({ ...p, descontos: p.descontos - 1 }))}><ChevronLeft className="w-4 h-4" /></Button>
+                    <span className="text-sm font-medium px-2">{paginaTab.descontos} / {Math.ceil(descontosFiltrados.length / ITENS_POR_PAGINA)}</span>
+                    <Button variant="outline" size="sm" disabled={paginaTab.descontos >= Math.ceil(descontosFiltrados.length / ITENS_POR_PAGINA)} onClick={() => setPaginaTab(p => ({ ...p, descontos: p.descontos + 1 }))}><ChevronRight className="w-4 h-4" /></Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -378,7 +472,7 @@ export default function Logs() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {logsCaixa.map((caixa) => (
+                  {logsCaixa.slice((paginaTab.caixa - 1) * ITENS_POR_PAGINA, paginaTab.caixa * ITENS_POR_PAGINA).map((caixa) => (
                     <TableRow key={caixa.id}>
                       <TableCell className="font-bold">#{caixa.numero_caixa}</TableCell>
                       <TableCell className="text-xs">{format(new Date(caixa.data_abertura), 'dd/MM/yyyy HH:mm')}</TableCell>
@@ -386,9 +480,9 @@ export default function Logs() {
                       <TableCell className="text-xs">{caixa.data_fechamento ? format(new Date(caixa.data_fechamento), 'dd/MM/yyyy HH:mm') : '-'}</TableCell>
                       <TableCell>{caixa.usuario_fechamento || '-'}</TableCell>
                       <TableCell>
-                        {caixa.diferenca !== undefined && caixa.diferenca !== 0 ? (
-                          <span className={`font-bold ${caixa.diferenca > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            R$ {caixa.diferenca?.toFixed(2)}
+                        {caixa.diferenca !== undefined && caixa.diferenca !== null && Number(caixa.diferenca) !== 0 ? (
+                          <span className={`font-bold ${Number(caixa.diferenca) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            R$ {(parseFloat(caixa.diferenca) || 0).toFixed(2)}
                           </span>
                         ) : '-'}
                       </TableCell>
@@ -399,8 +493,25 @@ export default function Logs() {
                       </TableCell>
                     </TableRow>
                   ))}
+                  {logsCaixa.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-slate-500 py-8">
+                        Nenhum registro de caixa neste período
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
+              {Math.ceil(logsCaixa.length / ITENS_POR_PAGINA) > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <span className="text-sm text-slate-500">Mostrando {((paginaTab.caixa - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(paginaTab.caixa * ITENS_POR_PAGINA, logsCaixa.length)} de {logsCaixa.length}</span>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={paginaTab.caixa <= 1} onClick={() => setPaginaTab(p => ({ ...p, caixa: p.caixa - 1 }))}><ChevronLeft className="w-4 h-4" /></Button>
+                    <span className="text-sm font-medium px-2">{paginaTab.caixa} / {Math.ceil(logsCaixa.length / ITENS_POR_PAGINA)}</span>
+                    <Button variant="outline" size="sm" disabled={paginaTab.caixa >= Math.ceil(logsCaixa.length / ITENS_POR_PAGINA)} onClick={() => setPaginaTab(p => ({ ...p, caixa: p.caixa + 1 }))}><ChevronRight className="w-4 h-4" /></Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

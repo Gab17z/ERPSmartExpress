@@ -60,7 +60,7 @@ const MultiLojas = lazy(() => import("./MultiLojas"));
 const Previsoes = lazy(() => import("./Previsoes"));
 const RentabilidadeLoja = lazy(() => import("./RentabilidadeLoja"));
 const CRM = lazy(() => import("./CRM"));
-const ConfiguracaoCupom = lazy(() => import("./ConfiguracaoCupom"));
+
 const Marketing = lazy(() => import("./Marketing"));
 const Financeiro = lazy(() => import("./Financeiro"));
 const MeuPerfil = lazy(() => import("./MeuPerfil"));
@@ -75,7 +75,7 @@ const PAGES = {
     RelatorioSeminovos, RelatorioFiscal, NFe, NFCe, Logs, MetasAprimorado, Metas,
     AgendaCompleta, Agenda, Marketplace, Carrinho, ContasRecorrentes, Compras,
     Devolucoes, ContasBancarias, Comissoes, AnalisesCurvaABC, ChatbotConfig,
-    AdmWhatsApp, MultiLojas, Previsoes, RentabilidadeLoja, CRM, ConfiguracaoCupom,
+    AdmWhatsApp, MultiLojas, Previsoes, RentabilidadeLoja, CRM,
     Marketing, Financeiro, MeuPerfil,
 };
 
@@ -177,7 +177,6 @@ function PagesContent() {
                     <Route path="/PosVenda" element={<ProtectedRoute requiredPermission={["visualizar_relatorios", "acessar_relatorios"]}><PosVenda /></ProtectedRoute>} />
                     <Route path="/Marketing" element={<ProtectedRoute requiredPermission="acessar_integracoes"><Marketing /></ProtectedRoute>} />
                     <Route path="/CuponsDesconto" element={<ProtectedRoute requiredPermission="acessar_configuracoes"><CuponsDesconto /></ProtectedRoute>} />
-                    <Route path="/ConfiguracaoCupom" element={<ProtectedRoute requiredPermission="acessar_configuracoes"><ConfiguracaoCupom /></ProtectedRoute>} />
 
                     {/* Comissões e Devoluções */}
                     <Route path="/Comissoes" element={<ProtectedRoute requiredPermission={["visualizar_relatorios", "acessar_relatorios"]}><Comissoes /></ProtectedRoute>} />
