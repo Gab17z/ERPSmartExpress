@@ -18,9 +18,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { DollarSign, Lock, Unlock, Calculator, TrendingUp, Clock, ArrowDown, ArrowUp, AlertTriangle, ShieldCheck, ShieldAlert } from "lucide-react";
+import { DollarSign, Lock, Unlock, Calculator, TrendingUp, Clock, ArrowDown, ArrowUp, AlertTriangle, ShieldCheck, ShieldAlert, Eye, Printer, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { format, differenceInHours } from "date-fns";
+import ContagemNotas from "@/components/caixa/ContagemNotas";
+import CaixaDetalhe from "@/components/caixa/CaixaDetalhe";
+import { imprimirFechamento80mm, imprimirFechamentoA4 } from "@/components/caixa/RelatorioFechamento";
 
 // CORREÇÃO: Constantes de configuração para validações
 const LIMITE_DIFERENCA_SEM_APROVACAO = 50; // R$ 50 de diferença máxima sem aprovação
@@ -44,6 +47,16 @@ export default function Caixa() {
     cheque: 0,
     outros: 0
   });
+
+  // Contagem de notas/moedas para fechamento
+  const [contagemNotas, setContagemNotas] = useState({
+    notas: { "200": 0, "100": 0, "50": 0, "20": 0, "10": 0, "5": 0, "2": 0 },
+    moedas: { "1": 0, "0.5": 0, "0.25": 0, "0.10": 0, "0.05": 0 },
+    total: 0
+  });
+  // Detalhe de caixa no histórico
+  const [dialogDetalhe, setDialogDetalhe] = useState(false);
+  const [caixaSelecionado, setCaixaSelecionado] = useState(null);
 
   // CORREÇÃO: Estados para aprovação de operações sensíveis
   const [dialogAprovacaoSangria, setDialogAprovacaoSangria] = useState(false);
@@ -81,7 +94,14 @@ export default function Caixa() {
     refetchOnWindowFocus: true, // Atualiza ao voltar para a aba
   });
 
+  const { data: usuariosSistema = [] } = useQuery({
+    queryKey: ['usuarios_sistema_caixa'],
+    queryFn: () => base44.entities.UsuarioSistema.list('nome'),
+  });
+
   const caixaAberto = caixas.find(c => c.status === 'aberto');
+
+
 
   // CORREÇÃO: Calcular horas desde abertura do caixa
   const horasAberto = useMemo(() => {
@@ -109,8 +129,14 @@ export default function Caixa() {
         throw new Error(`Já existe um caixa aberto (#${caixaAbertoExistente.numero_caixa}) por ${caixaAbertoExistente.usuario_abertura}. Feche-o antes de abrir outro.`);
       }
 
-      const ultimoCaixa = caixasAtuais[0];
-      const numeroCaixa = ultimoCaixa ? (ultimoCaixa.numero_caixa || 0) + 1 : 1;
+      // CORREÇÃO: Usar contagem de caixas ordenados por data de criação 
+      // para gerar número sequencial. Isso evita o bug de concatenação de string
+      // que gerava números como 13 → 131 → 1311 → 13111
+      const caixasOrdenados = [...caixasAtuais].sort(
+        (a, b) => new Date(a.created_date || a.data_abertura) - new Date(b.created_date || b.data_abertura)
+      );
+      // O próximo número é simplesmente o total de caixas + 1
+      const numeroCaixa = caixasOrdenados.length + 1;
 
       // Não enviar usuario_abertura_id pois sistema usa auth customizada
       return base44.entities.Caixa.create({
@@ -311,7 +337,24 @@ export default function Caixa() {
         }
       }
 
-      return base44.entities.Caixa.update(caixaAberto.id, {
+      // Calcular resumo de pagamentos para persistir no caixa
+      const resumoPag = {
+        dinheiro: 0, cartao_credito: 0, cartao_debito: 0,
+        pix: 0, cheque: 0, outros: 0, total: 0
+      };
+      vendasDoCaixa.forEach(v => {
+        (v.pagamentos || []).forEach(p => {
+          const forma = p.forma_pagamento || 'outros';
+          if (Object.prototype.hasOwnProperty.call(resumoPag, forma)) {
+            resumoPag[forma] += (p.valor || 0);
+          } else {
+            resumoPag.outros += (p.valor || 0);
+          }
+          resumoPag.total += (p.valor || 0);
+        });
+      });
+
+      const caixaAtualizado = await base44.entities.Caixa.update(caixaAberto.id, {
         status: 'fechado',
         data_fechamento: new Date().toISOString(),
         usuario_fechamento: user?.nome || "Usuário",
@@ -322,10 +365,14 @@ export default function Caixa() {
         total_sangrias: totalSangrias,
         total_suprimentos: totalSuprimentos,
         observacoes_fechamento: observacoes,
-        aprovacao_diferenca: diferencaAbsoluta > LIMITE_DIFERENCA_SEM_APROVACAO ? user?.nome : null
+        aprovacao_diferenca: diferencaAbsoluta > LIMITE_DIFERENCA_SEM_APROVACAO ? user?.nome : null,
+        contagem_notas: contagemNotas,
+        resumo_pagamentos: resumoPag
       });
+
+      return { caixa: caixaAtualizado, vendas: vendasDoCaixa, movimentacoes: movsDoCaixa };
     },
-    onSuccess: () => {
+    onSuccess: ({ caixa: caixaFechado, vendas: vendasFechamento, movimentacoes: movsFechamento }) => {
       queryClient.invalidateQueries({ queryKey: ['caixas'] });
       toast.success("Caixa fechado com sucesso!");
       setDialogFechamento(false);
@@ -340,6 +387,19 @@ export default function Caixa() {
         cheque: 0,
         outros: 0
       });
+      setContagemNotas({
+        notas: { "200": 0, "100": 0, "50": 0, "20": 0, "10": 0, "5": 0, "2": 0 },
+        moedas: { "1": 0, "0.5": 0, "0.25": 0, "0.10": 0, "0.05": 0 },
+        total: 0
+      });
+
+      // Imprimir recibo 80mm automaticamente
+      try {
+        const config = JSON.parse(localStorage.getItem('configuracoes_erp') || '{}');
+        imprimirFechamento80mm(caixaFechado, vendasFechamento, movsFechamento, config.empresa || {});
+      } catch (e) {
+        console.error("Erro ao imprimir fechamento:", e);
+      }
     },
     onError: (error) => {
       if (error.message === "REQUER_APROVACAO") {
@@ -872,17 +932,32 @@ export default function Caixa() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <span className="text-lg font-bold text-blue-600">#{caixa.numero_caixa}</span>
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
+                        <DollarSign className="w-5 h-5 text-blue-600" />
                       </div>
                       <div>
                         <p className="font-semibold text-slate-900">Caixa #{caixa.numero_caixa}</p>
                         <p className="text-sm text-slate-500">{caixa.usuario_abertura}</p>
                       </div>
                     </div>
-                    <Badge variant={caixa.status === 'aberto' ? 'default' : 'secondary'}>
-                      {caixa.status === 'aberto' ? 'Aberto' : 'Fechado'}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      {caixa.status === 'fechado' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setCaixaSelecionado(caixa);
+                            setDialogDetalhe(true);
+                          }}
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          Detalhes
+                        </Button>
+                      )}
+                      <Badge variant={caixa.status === 'aberto' ? 'default' : 'secondary'}>
+                        {caixa.status === 'aberto' ? 'Aberto' : 'Fechado'}
+                      </Badge>
+                    </div>
                   </div>
                   
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
@@ -955,6 +1030,21 @@ export default function Caixa() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog Detalhe do Caixa */}
+      <CaixaDetalhe
+        open={dialogDetalhe}
+        onOpenChange={setDialogDetalhe}
+        caixa={caixaSelecionado}
+        onPrint80mm={(caixa, vendas, movs) => {
+          const config = JSON.parse(localStorage.getItem('configuracoes_erp') || '{}');
+          imprimirFechamento80mm(caixa, vendas, movs, config.empresa || {});
+        }}
+        onPrintA4={(caixa, vendas, movs) => {
+          const config = JSON.parse(localStorage.getItem('configuracoes_erp') || '{}');
+          imprimirFechamentoA4(caixa, vendas, movs, config.empresa || {});
+        }}
+      />
 
       {/* Dialog Abertura */}
       <Dialog open={dialogAbertura} onOpenChange={setDialogAbertura}>
@@ -1099,11 +1189,11 @@ export default function Caixa() {
 
       {/* Dialog Fechamento */}
       <Dialog open={dialogFechamento} onOpenChange={setDialogFechamento}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Fechar Caixa #{caixaAberto?.numero_caixa}</DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
               <h4 className="font-semibold text-orange-900 mb-2">Valor Esperado no Caixa</h4>
@@ -1122,7 +1212,21 @@ export default function Caixa() {
               </div>
             </div>
 
-            {/* CORREÇÃO: Alerta sobre limite de diferença */}
+            {/* Resumo por forma de pagamento (sistema) */}
+            {resumoCaixa && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-900 mb-2 text-sm">Vendas por Forma de Pagamento (Sistema)</h4>
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  {resumoCaixa.dinheiro > 0 && <div className="flex justify-between"><span>Dinheiro:</span><span className="font-medium">R$ {resumoCaixa.dinheiro.toFixed(2)}</span></div>}
+                  {resumoCaixa.cartao_credito > 0 && <div className="flex justify-between"><span>C. Crédito:</span><span className="font-medium">R$ {resumoCaixa.cartao_credito.toFixed(2)}</span></div>}
+                  {resumoCaixa.cartao_debito > 0 && <div className="flex justify-between"><span>C. Débito:</span><span className="font-medium">R$ {resumoCaixa.cartao_debito.toFixed(2)}</span></div>}
+                  {resumoCaixa.pix > 0 && <div className="flex justify-between"><span>PIX:</span><span className="font-medium">R$ {resumoCaixa.pix.toFixed(2)}</span></div>}
+                  {resumoCaixa.cheque > 0 && <div className="flex justify-between"><span>Cheque:</span><span className="font-medium">R$ {resumoCaixa.cheque.toFixed(2)}</span></div>}
+                  {resumoCaixa.outros > 0 && <div className="flex justify-between"><span>Outros:</span><span className="font-medium">R$ {resumoCaixa.outros.toFixed(2)}</span></div>}
+                </div>
+              </div>
+            )}
+
             <Alert className="border-blue-200 bg-blue-50">
               <ShieldCheck className="h-4 w-4 text-blue-600" />
               <AlertDescription className="text-blue-800">
@@ -1132,18 +1236,24 @@ export default function Caixa() {
 
             <Separator />
 
+            {/* Contagem de Dinheiro por denominação */}
             <div>
-              <h4 className="font-semibold mb-3">Contagem de Valores</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Dinheiro</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={valorContado.dinheiro}
-                    onChange={(e) => setValorContado({...valorContado, dinheiro: parseFloat(e.target.value) || 0})}
-                  />
-                </div>
+              <h4 className="font-semibold mb-3">Contagem de Dinheiro (Cédulas e Moedas)</h4>
+              <ContagemNotas
+                value={contagemNotas}
+                onChange={(newValue) => {
+                  setContagemNotas(newValue);
+                  setValorContado(prev => ({ ...prev, dinheiro: newValue.total }));
+                }}
+              />
+            </div>
+
+            <Separator />
+
+            {/* Demais formas de pagamento */}
+            <div>
+              <h4 className="font-semibold mb-3">Contagem - Outras Formas</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
                   <Label>Cartão Crédito</Label>
                   <Input
@@ -1278,9 +1388,25 @@ export default function Caixa() {
               Voltar
             </Button>
             <Button
-              onClick={() => sangriaMutation.mutate({ aprovado: true })}
+              onClick={() => {
+                if (!senhaAprovacao.trim()) {
+                  toast.error("Digite a senha do gerente para aprovar!");
+                  return;
+                }
+                const gerente = usuariosSistema.find(
+                  u => u.senha_autorizacao === senhaAprovacao && u.ativo !== false
+                );
+                if (!gerente) {
+                  toast.error("Senha inválida! Gerente não encontrado.");
+                  setSenhaAprovacao("");
+                  return;
+                }
+                toast.success(`Aprovado por: ${gerente.nome}`);
+                setSenhaAprovacao("");
+                sangriaMutation.mutate({ aprovado: true });
+              }}
               className="bg-orange-600 hover:bg-orange-700"
-              disabled={sangriaMutation.isPending}
+              disabled={sangriaMutation.isPending || !senhaAprovacao.trim()}
             >
               {sangriaMutation.isPending ? "Processando..." : "Aprovar Sangria"}
             </Button>
@@ -1350,9 +1476,25 @@ export default function Caixa() {
               Voltar e Recontar
             </Button>
             <Button
-              onClick={() => fecharCaixaMutation.mutate({ aprovado: true, justificativa: justificativaDiferenca })}
+              onClick={() => {
+                if (!senhaAprovacao.trim()) {
+                  toast.error("Digite a senha do gerente para aprovar!");
+                  return;
+                }
+                const gerente = usuariosSistema.find(
+                  u => u.senha_autorizacao === senhaAprovacao && u.ativo !== false
+                );
+                if (!gerente) {
+                  toast.error("Senha inválida! Gerente não encontrado.");
+                  setSenhaAprovacao("");
+                  return;
+                }
+                toast.success(`Aprovado por: ${gerente.nome}`);
+                setSenhaAprovacao("");
+                fecharCaixaMutation.mutate({ aprovado: true, justificativa: justificativaDiferenca });
+              }}
               className="bg-red-600 hover:bg-red-700"
-              disabled={!justificativaDiferenca.trim() || fecharCaixaMutation.isPending}
+              disabled={!justificativaDiferenca.trim() || !senhaAprovacao.trim() || fecharCaixaMutation.isPending}
             >
               {fecharCaixaMutation.isPending ? "Processando..." : "Aprovar e Fechar"}
             </Button>

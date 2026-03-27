@@ -3,7 +3,8 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowUpCircle, ArrowDownCircle } from "lucide-react";
+import { ArrowUpCircle, ArrowDownCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { format, isWithinInterval, parseISO, startOfMonth, startOfDay, endOfDay } from "date-fns";
 import DateRangeFilter from "@/components/DateRangeFilter";
 
@@ -13,6 +14,8 @@ export default function MovimentacaoFinanceira() {
     dataInicio: format(startOfMonth(hoje), 'yyyy-MM-dd'),
     dataFim: format(hoje, 'yyyy-MM-dd')
   });
+  const [pagina, setPagina] = useState(1);
+  const ITENS_POR_PAGINA = 20;
 
   const filtrarPorData = (data) => {
     try {
@@ -107,11 +110,11 @@ export default function MovimentacaoFinanceira() {
 
   // CRÍTICO: Validação de valores e datas - Contas a Pagar
   const saidasContasPagar = contasPagar
-    .filter(c => c.situacao === 'pago' && c.data_pagamento && filtrarPorData(c.data_pagamento))
+    .filter(c => c.status === 'pago' && c.data_pagamento && filtrarPorData(c.data_pagamento))
     .map(c => ({
       id: 'cp-' + c.id,
       tipo: 'saida',
-      valor: parseFloat(c.valor_total) || 0,
+      valor: parseFloat(c.valor) || 0,
       descricao: c.descricao,
       categoria: c.categoria || 'despesa',
       data: c.data_pagamento,
@@ -170,7 +173,7 @@ export default function MovimentacaoFinanceira() {
         </div>
       </div>
 
-      <DateRangeFilter onFilterChange={setFiltro} />
+      <DateRangeFilter onFilterChange={(f) => { setFiltro(f); setPagina(1); }} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="border-l-4 border-l-green-500">
@@ -230,7 +233,7 @@ export default function MovimentacaoFinanceira() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {movimentacoes.map((mov) => (
+                {movimentacoes.slice((pagina - 1) * ITENS_POR_PAGINA, pagina * ITENS_POR_PAGINA).map((mov) => (
                   <TableRow key={mov.id}>
                     <TableCell className="whitespace-nowrap">{format(new Date(mov.data), 'dd/MM/yyyy')}</TableCell>
                     <TableCell>
@@ -260,6 +263,22 @@ export default function MovimentacaoFinanceira() {
               </TableBody>
             </Table>
           </div>
+          {Math.ceil(movimentacoes.length / ITENS_POR_PAGINA) > 1 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+              <span className="text-sm text-slate-500">
+                Mostrando {((pagina - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(pagina * ITENS_POR_PAGINA, movimentacoes.length)} de {movimentacoes.length}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={pagina <= 1} onClick={() => setPagina(p => p - 1)}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span className="text-sm font-medium px-2">{pagina} / {Math.ceil(movimentacoes.length / ITENS_POR_PAGINA)}</span>
+                <Button variant="outline" size="sm" disabled={pagina >= Math.ceil(movimentacoes.length / ITENS_POR_PAGINA)} onClick={() => setPagina(p => p + 1)}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -82,13 +82,12 @@ export default function Dashboard() {
     queryFn: () => base44.entities.Caixa.list('-created_date', 10),
   });
 
-  const { data: comissoes = [] } = useQuery({
+  const { data: comissoes = [], isLoading: loadingComissoes } = useQuery({
     queryKey: ['comissoes'],
     queryFn: async () => {
       try {
         return await base44.entities.Comissao.list();
       } catch (error) {
-        // CORREÇÃO: Logar erro para debug
         console.error("Erro ao carregar comissões:", error);
         return [];
       }
@@ -124,7 +123,7 @@ export default function Dashboard() {
 
   // CRÍTICO: Calcular lucro com validação (incluindo comissões pagas)
   // CORREÇÃO: Só calcular se produtos estiverem carregados para evitar race condition
-  const lucroPeriodo = loadingProdutos ? 0 : vendasPeriodo.reduce((sum, venda) => {
+  const lucroPeriodo = (loadingProdutos || loadingComissoes) ? 0 : vendasPeriodo.reduce((sum, venda) => {
     const custoTotal = venda.itens?.reduce((itemSum, item) => {
       const produto = produtos.find(p => p.id === item.produto_id);
       // Se produto não encontrado, usar custo do item se disponível
@@ -224,6 +223,20 @@ export default function Dashboard() {
   }, [vendasFinalizadas]);
 
   // Status das OS - memoizado para performance
+  const STATUS_LABELS_OS = {
+    recebido: "Recebido",
+    em_diagnostico: "Em Diagnóstico",
+    aguardando_aprovacao: "Aguardando Aprovação",
+    aprovado: "Aprovado",
+    orcamento_reprovado: "Orç. Reprovado",
+    aguardando_pecas: "Aguardando Peças",
+    em_conserto: "Em Conserto",
+    pronto: "Pronto",
+    entregue: "Entregue",
+    faturada: "Faturada",
+    cancelado: "Cancelado"
+  };
+
   const dadosStatusOS = useMemo(() => {
     const statusOS = ordensServico.reduce((acc, os) => {
       const status = os.status || 'recebido';
@@ -232,7 +245,7 @@ export default function Dashboard() {
     }, {});
 
     return Object.entries(statusOS).map(([status, quantidade]) => ({
-      name: status.replace(/_/g, ' ').toUpperCase(),
+      name: STATUS_LABELS_OS[status] || status,
       value: quantidade
     }));
   }, [ordensServico]);
@@ -544,7 +557,7 @@ export default function Dashboard() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
                   outerRadius={100}
                   fill="#8884d8"
                   dataKey="value"

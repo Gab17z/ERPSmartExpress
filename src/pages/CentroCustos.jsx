@@ -3,6 +3,8 @@ import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import { format, isWithinInterval, parseISO, startOfMonth, startOfDay, endOfDay } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +20,8 @@ export default function CentroCustos() {
     dataFim: format(hoje, 'yyyy-MM-dd')
   });
   const [visualizacao, setVisualizacao] = useState('pago'); // 'pago' ou 'todos'
+  const [pagina, setPagina] = useState(1);
+  const ITENS_POR_PAGINA = 20;
 
   const filtrarPorData = (data) => {
     if (!data) return false;
@@ -119,7 +123,7 @@ export default function CentroCustos() {
         <p className="text-slate-500">Análise de despesas por categoria</p>
       </div>
 
-      <DateRangeFilter onFilterChange={setFiltro} />
+      <DateRangeFilter onFilterChange={(f) => { setFiltro(f); setPagina(1); }} />
 
       <Tabs value={visualizacao} onValueChange={setVisualizacao}>
         <TabsList>
@@ -203,7 +207,7 @@ export default function CentroCustos() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {todasDespesas.map((despesa) => (
+                    {todasDespesas.slice((pagina - 1) * ITENS_POR_PAGINA, pagina * ITENS_POR_PAGINA).map((despesa) => (
                       <TableRow key={despesa.id}>
                         <TableCell className="whitespace-nowrap">
                           {despesa.data ? format(new Date(despesa.data), 'dd/MM/yyyy') : '-'}
@@ -224,6 +228,22 @@ export default function CentroCustos() {
                   </TableBody>
                 </Table>
               </div>
+              {Math.ceil(todasDespesas.length / ITENS_POR_PAGINA) > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <span className="text-sm text-slate-500">
+                    Mostrando {((pagina - 1) * ITENS_POR_PAGINA) + 1}-{Math.min(pagina * ITENS_POR_PAGINA, todasDespesas.length)} de {todasDespesas.length}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={pagina <= 1} onClick={() => setPagina(p => p - 1)}>
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <span className="text-sm font-medium px-2">{pagina} / {Math.ceil(todasDespesas.length / ITENS_POR_PAGINA)}</span>
+                    <Button variant="outline" size="sm" disabled={pagina >= Math.ceil(todasDespesas.length / ITENS_POR_PAGINA)} onClick={() => setPagina(p => p + 1)}>
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </>
