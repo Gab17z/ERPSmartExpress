@@ -361,12 +361,12 @@ export default function Relatorios() {
     venda.itens?.forEach(item => {
       if (vendasPorItem[item.produto_nome]) {
         vendasPorItem[item.produto_nome].quantidade += item.quantidade;
-        vendasPorItem[item.produto_nome].valor += item.subtotal;
+        vendasPorItem[item.produto_nome].valor += (parseFloat(item.subtotal) || 0);
         vendasPorItem[item.produto_nome].vendas++;
       } else {
         vendasPorItem[item.produto_nome] = {
           quantidade: item.quantidade,
-          valor: item.subtotal,
+          valor: parseFloat(item.subtotal) || 0,
           vendas: 1
         };
       }
@@ -426,7 +426,7 @@ export default function Relatorios() {
       data: formatarData(venda.created_date),
       dataRaw: new Date(venda.created_date),
       vendedor: venda.vendedor_nome || 'N/A',
-      valor: (venda.valor_total || 0),
+      valor: parseFloat(venda.valor_total) || 0,
       custo: custoTotalComComissao,
       lucro: lucro,
       margem: margem

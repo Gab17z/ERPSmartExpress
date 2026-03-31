@@ -275,7 +275,7 @@ Observações: ${pedidoData.observacoes || 'Nenhuma'}`
                       <div className="flex-1 flex flex-col">
                         <h3 className="font-semibold mb-1">{item.nome}</h3>
                         <p className="text-lg font-bold text-green-600 mb-3">
-                          R$ {item.preco.toFixed(2)}
+                          R$ {(parseFloat(item.preco) || 0).toFixed(2)}
                         </p>
                         <div className="flex items-center justify-between mt-auto">
                           <div className="flex items-center gap-2">
@@ -299,7 +299,7 @@ Observações: ${pedidoData.observacoes || 'Nenhuma'}`
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="font-bold text-lg">
-                              R$ {(item.preco * item.quantidade).toFixed(2)}
+                              R$ {((parseFloat(item.preco) || 0) * item.quantidade).toFixed(2)}
                             </span>
                             <Button
                               variant="ghost"
