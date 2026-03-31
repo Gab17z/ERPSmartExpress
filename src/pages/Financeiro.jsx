@@ -145,14 +145,19 @@ export default function Financeiro() {
       .filter(c => c.status === 'pendente' && isSameDay(new Date(c.data_vencimento), hoje))
       .reduce((sum, c) => sum + (c.valor || 0), 0);
 
-    // Saldo em caixa (calculado a partir dos campos reais - saldo_atual não existe na tabela)
+    // Saldo em caixa — para caixa ABERTO os campos total_vendas/suprimentos/sangrias
+    // são null (só existem em caixas fechados). Calcular em tempo real com vendas e movimentações.
     const caixaAberto = caixas.find(c => c.status === 'aberto');
-    const saldoCaixa = caixaAberto
-      ? (parseFloat(caixaAberto.valor_inicial) || 0) +
-        (parseFloat(caixaAberto.total_vendas) || 0) +
-        (parseFloat(caixaAberto.total_suprimentos) || 0) -
-        (parseFloat(caixaAberto.total_sangrias) || 0)
-      : 0;
+    const saldoCaixa = (() => {
+      if (!caixaAberto) return 0;
+      const vendasCaixa = vendas
+        .filter(v => v.caixa_id === caixaAberto.id && v.status === 'finalizada')
+        .reduce((s, v) => s + (parseFloat(v.valor_total) || 0), 0);
+      const movsCaixa = movimentacoes.filter(m => m.caixa_id === caixaAberto.id);
+      const totalSuprimentos = movsCaixa.filter(m => m.tipo === 'suprimento').reduce((s, m) => s + (parseFloat(m.valor) || 0), 0);
+      const totalSangrias = movsCaixa.filter(m => m.tipo === 'sangria').reduce((s, m) => s + (parseFloat(m.valor) || 0), 0);
+      return (parseFloat(caixaAberto.valor_inicial) || 0) + vendasCaixa + totalSuprimentos - totalSangrias;
+    })();
 
     // Saldo bancario
     const saldoBancario = contasBancarias.reduce((sum, c) => sum + (c.saldo || 0), 0);

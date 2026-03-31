@@ -512,7 +512,12 @@ export default function ContasPagar() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogBaixa(false)}>Cancelar</Button>
-            <Button onClick={() => baixarMutation.mutate({ id: contaSelecionada.id })}>Confirmar Pagamento</Button>
+            <Button
+              onClick={() => baixarMutation.mutate({ id: contaSelecionada.id })}
+              disabled={baixarMutation.isPending}
+            >
+              {baixarMutation.isPending ? "Processando..." : "Confirmar Pagamento"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
