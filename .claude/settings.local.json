@@ -51,7 +51,11 @@
       "Bash(cd:*)",
       "Bash(del \"c:\\\\Users\\\\Gabriel Gomes\\\\Desktop\\\\PROJETOS\\\\Smart 26\\\\SmartExpress-main\\\\SmartExpress-main\\\\src\\\\pages\\\\ConfiguracaoCupom.jsx\")",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nadiciona componentes caixa faltantes \\(CaixaDetalhe, ContagemNotas, RelatorioFechamento\\)\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(git -C \"c:\\\\Users\\\\Gabriel Gomes\\\\Desktop\\\\PROJETOS\\\\Smart 26\\\\SmartExpress-main\\\\SmartExpress-main\" credential-manager-core --version)",
+      "Bash(git -C \"c:\\\\Users\\\\Gabriel Gomes\\\\Desktop\\\\PROJETOS\\\\Smart 26\\\\SmartExpress-main\\\\SmartExpress-main\" config credential.helper)",
+      "Bash(git checkout:*)",
+      "Bash(git push:*)"
     ]
   },
   "enabledMcpjsonServers": [
