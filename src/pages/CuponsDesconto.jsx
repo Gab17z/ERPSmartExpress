@@ -195,7 +195,7 @@ export default function CuponsDesconto() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {cupom.tipo === "percentual" ? `${cupom.valor}%` : `R$ ${cupom.valor.toFixed(2)}`}
+                    {cupom.tipo === "percentual" ? `${cupom.valor}%` : `R$ ${(parseFloat(cupom.valor) || 0).toFixed(2)}`}
                   </TableCell>
                   <TableCell>
                     {cupom.uso_atual || 0}/{cupom.uso_maximo || "∞"}
