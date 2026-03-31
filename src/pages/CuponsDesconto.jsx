@@ -137,7 +137,8 @@ export default function CuponsDesconto() {
       valor: valor,
       valor_minimo: parseFloat(formData.valor_minimo) || 0,
       uso_maximo: parseInt(formData.uso_maximo) || null,
-      uso_atual: 0,
+      // Não zerar uso_atual ao editar — preservar contador de usos
+      ...(editingCupom ? {} : { uso_atual: 0 }),
       data_fim: formData.data_fim || null,
       ativo: formData.ativo
     };
@@ -205,7 +206,7 @@ export default function CuponsDesconto() {
                   <TableCell>
                     {(() => {
                       // Verificar se cupom expirou
-                      const expirado = cupom.data_fim && new Date(cupom.data_fim) < new Date();
+                      const expirado = cupom.data_fim && (new Date(cupom.data_fim + 'T23:59:59') < new Date());
                       const semUsos = cupom.uso_maximo > 0 && (cupom.uso_atual || 0) >= cupom.uso_maximo;
 
                       if (expirado) {

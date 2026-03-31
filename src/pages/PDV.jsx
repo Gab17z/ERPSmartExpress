@@ -812,10 +812,13 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
         return;
       }
 
-      // Verificar validade
-      if (cupom.data_fim && new Date(cupom.data_fim) < new Date()) {
-        toast.error("Cupom expirado!");
-        return;
+      // Verificar validade — usa fim do dia para não expirar antes da hora (bug de timezone UTC)
+      if (cupom.data_fim) {
+        const fimDoDia = new Date(cupom.data_fim + 'T23:59:59');
+        if (fimDoDia < new Date()) {
+          toast.error("Cupom expirado!");
+          return;
+        }
       }
 
       // Verificar uso maximo
