@@ -91,8 +91,9 @@ function gerarHtmlContagem(contagem) {
 
 // ========== RECIBO 80mm ==========
 
-export function imprimirFechamento80mm(caixa, vendas, movimentacoes, empresa) {
+export function imprimirFechamento80mm(caixa, vendas, movimentacoes, empresa, numeroCaixaDisplay) {
   if (!caixa) return;
+  const numCaixa = numeroCaixaDisplay ?? caixa.numero_caixa ?? "-";
 
   const resumo = caixa.resumo_pagamentos || calcularResumoPagamentos(vendas);
   const sangrias = (movimentacoes || []).filter((m) => m.tipo === "sangria");
@@ -102,7 +103,7 @@ export function imprimirFechamento80mm(caixa, vendas, movimentacoes, empresa) {
 <html>
 <head>
 <meta charset="utf-8">
-<title>Fechamento Caixa #${caixa.numero_caixa || ""}</title>
+<title>Fechamento Caixa #${numCaixa}</title>
 <style>
 @media print {
   @page { margin: 0; size: 80mm auto; }
@@ -145,7 +146,7 @@ body {
 <div class="titulo">FECHAMENTO DE CAIXA</div>
 <div class="divider"></div>
 
-<div class="item"><span>Caixa Nº:</span><span class="bold">${caixa.numero_caixa || "-"}</span></div>
+<div class="item"><span>Caixa Nº:</span><span class="bold">${numCaixa}</span></div>
 <div class="item"><span>Abertura:</span><span>${formatData(caixa.data_abertura)}</span></div>
 <div class="item"><span>Fechamento:</span><span>${formatData(caixa.data_fechamento)}</span></div>
 <div class="item"><span>Operador:</span><span>${caixa.usuario_abertura || "-"}</span></div>
@@ -214,8 +215,9 @@ ${caixa.observacoes_fechamento ? `
 
 // ========== RELATÓRIO A4 ==========
 
-export function imprimirFechamentoA4(caixa, vendas, movimentacoes, empresa) {
+export function imprimirFechamentoA4(caixa, vendas, movimentacoes, empresa, numeroCaixaDisplay) {
   if (!caixa) return;
+  const numCaixa = numeroCaixaDisplay ?? caixa.numero_caixa ?? "-";
 
   const resumo = caixa.resumo_pagamentos || calcularResumoPagamentos(vendas);
   const sangrias = (movimentacoes || []).filter((m) => m.tipo === "sangria");
@@ -302,7 +304,7 @@ export function imprimirFechamentoA4(caixa, vendas, movimentacoes, empresa) {
 <html>
 <head>
 <meta charset="utf-8">
-<title>Relatório de Fechamento - Caixa #${caixa.numero_caixa || ""}</title>
+<title>Relatório de Fechamento - Caixa #${numCaixa}</title>
 <style>
 @media print {
   @page { size: A4; margin: 15mm; }
@@ -356,7 +358,7 @@ tfoot th, tfoot td { background: #eee; font-weight: bold; }
 <h1>RELATÓRIO DE FECHAMENTO DE CAIXA</h1>
 
 <div class="info-grid">
-  <div><span class="label">Caixa Nº:</span> <span class="valor">${caixa.numero_caixa || "-"}</span></div>
+  <div><span class="label">Caixa Nº:</span> <span class="valor">${numCaixa}</span></div>
   <div><span class="label">Status:</span> <span class="valor">${caixa.status === "aberto" ? "ABERTO" : "FECHADO"}</span></div>
   <div><span class="label">Abertura:</span> <span class="valor">${formatData(caixa.data_abertura)}</span></div>
   <div><span class="label">Fechamento:</span> <span class="valor">${formatData(caixa.data_fechamento)}</span></div>

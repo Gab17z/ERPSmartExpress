@@ -39,7 +39,7 @@ function fmtData(iso) {
   }
 }
 
-export default function CaixaDetalhe({ open, onOpenChange, caixa, onPrint80mm, onPrintA4 }) {
+export default function CaixaDetalhe({ open, onOpenChange, caixa, numeroCaixa, onPrint80mm, onPrintA4 }) {
   const { data: vendasDoCaixa = [], isLoading: loadingVendas } = useQuery({
     queryKey: ["vendas-caixa-detalhe", caixa?.id],
     queryFn: () => base44.entities.Venda.list("-created_date"),
@@ -85,7 +85,7 @@ export default function CaixaDetalhe({ open, onOpenChange, caixa, onPrint80mm, o
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
-            <span>Caixa #{caixa.numero_caixa}</span>
+            <span>Caixa #{numeroCaixa ?? caixa.numero_caixa}</span>
             <Badge variant={caixa.status === "aberto" ? "default" : "secondary"}>
               {caixa.status === "aberto" ? "Aberto" : "Fechado"}
             </Badge>
