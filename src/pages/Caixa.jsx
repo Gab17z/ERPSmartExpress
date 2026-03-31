@@ -73,7 +73,7 @@ export default function Caixa() {
 
   const { data: caixas = [], isLoading } = useQuery({
     queryKey: ['caixas'],
-    queryFn: () => base44.entities.Caixa.list('-created_date', 50),
+    queryFn: () => base44.entities.Caixa.list('-created_date'),
   });
 
   const { data: vendas = [] } = useQuery({
@@ -101,7 +101,24 @@ export default function Caixa() {
 
   const caixaAberto = caixas.find(c => c.status === 'aberto');
 
+  // Mapa de numeração sequencial: ordena por data de criação e atribui 1, 2, 3...
+  // Isso corrige caixas antigos que tinham numero_caixa errado (ex: 16, 161)
+  const numeroCaixaMap = useMemo(() => {
+    const sorted = [...caixas].sort(
+      (a, b) => new Date(a.created_date || a.data_abertura) - new Date(b.created_date || b.data_abertura)
+    );
+    const map = {};
+    sorted.forEach((c, idx) => {
+      map[c.id] = idx + 1;
+    });
+    return map;
+  }, [caixas]);
 
+  // Helper para obter número sequencial de qualquer caixa
+  const getNumCaixa = (caixa) => {
+    if (!caixa?.id) return '-';
+    return numeroCaixaMap[caixa.id] || caixa.numero_caixa || '-';
+  };
 
   // CORREÇÃO: Calcular horas desde abertura do caixa
   const horasAberto = useMemo(() => {
@@ -126,7 +143,7 @@ export default function Caixa() {
       const caixaAbertoExistente = caixasAtuais.find(c => c.status === 'aberto');
 
       if (caixaAbertoExistente) {
-        throw new Error(`Já existe um caixa aberto (#${caixaAbertoExistente.numero_caixa}) por ${caixaAbertoExistente.usuario_abertura}. Feche-o antes de abrir outro.`);
+        throw new Error(`Já existe um caixa aberto por ${caixaAbertoExistente.usuario_abertura}. Feche-o antes de abrir outro.`);
       }
 
       // CORREÇÃO: Usar contagem de caixas ordenados por data de criação 
@@ -136,7 +153,8 @@ export default function Caixa() {
         (a, b) => new Date(a.created_date || a.data_abertura) - new Date(b.created_date || b.data_abertura)
       );
       // O próximo número é simplesmente o total de caixas + 1
-      const numeroCaixa = caixasOrdenados.length + 1;
+      // Math.trunc garante inteiro puro — evita qualquer risco de concatenação de string
+      const numeroCaixa = Math.trunc(caixasOrdenados.length) + 1;
 
       // Não enviar usuario_abertura_id pois sistema usa auth customizada
       return base44.entities.Caixa.create({
@@ -396,7 +414,8 @@ export default function Caixa() {
       // Imprimir recibo 80mm automaticamente
       try {
         const config = JSON.parse(localStorage.getItem('configuracoes_erp') || '{}');
-        imprimirFechamento80mm(caixaFechado, vendasFechamento, movsFechamento, config.empresa || {});
+        const numSeq = numeroCaixaMap[caixaFechado.id] || caixaFechado.numero_caixa;
+        imprimirFechamento80mm(caixaFechado, vendasFechamento, movsFechamento, config.empresa || {}, numSeq);
       } catch (e) {
         console.error("Erro ao imprimir fechamento:", e);
       }
@@ -448,7 +467,7 @@ export default function Caixa() {
         
         <div class="item">
           <span>Caixa Nº:</span>
-          <span class="bold">${caixa.numero_caixa}</span>
+          <span class="bold">${getNumCaixa(caixa)}</span>
         </div>
         <div class="item">
           <span>Data/Hora:</span>
@@ -552,7 +571,7 @@ export default function Caixa() {
 
         <div class="item">
           <span>Caixa Nº:</span>
-          <span class="bold">${caixaAberto?.numero_caixa || '-'}</span>
+          <span class="bold">${getNumCaixa(caixaAberto) || '-'}</span>
         </div>
         <div class="item">
           <span>Data/Hora:</span>
@@ -753,7 +772,7 @@ export default function Caixa() {
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-green-900">Caixa Aberto</h3>
-                  <p className="text-green-700">Caixa #{caixaAberto.numero_caixa} • {caixaAberto.usuario_abertura}</p>
+                  <p className="text-green-700">Caixa #{getNumCaixa(caixaAberto)} • {caixaAberto.usuario_abertura}</p>
                 </div>
                 {/* CORREÇÃO: Badge de tempo aberto */}
                 {horasAberto > 0 && (
@@ -936,7 +955,7 @@ export default function Caixa() {
                         <DollarSign className="w-5 h-5 text-blue-600" />
                       </div>
                       <div>
-                        <p className="font-semibold text-slate-900">Caixa #{caixa.numero_caixa}</p>
+                        <p className="font-semibold text-slate-900">Caixa #{getNumCaixa(caixa)}</p>
                         <p className="text-sm text-slate-500">{caixa.usuario_abertura}</p>
                       </div>
                     </div>
@@ -1036,13 +1055,14 @@ export default function Caixa() {
         open={dialogDetalhe}
         onOpenChange={setDialogDetalhe}
         caixa={caixaSelecionado}
+        numeroCaixa={caixaSelecionado ? getNumCaixa(caixaSelecionado) : null}
         onPrint80mm={(caixa, vendas, movs) => {
           const config = JSON.parse(localStorage.getItem('configuracoes_erp') || '{}');
-          imprimirFechamento80mm(caixa, vendas, movs, config.empresa || {});
+          imprimirFechamento80mm(caixa, vendas, movs, config.empresa || {}, getNumCaixa(caixa));
         }}
         onPrintA4={(caixa, vendas, movs) => {
           const config = JSON.parse(localStorage.getItem('configuracoes_erp') || '{}');
-          imprimirFechamentoA4(caixa, vendas, movs, config.empresa || {});
+          imprimirFechamentoA4(caixa, vendas, movs, config.empresa || {}, getNumCaixa(caixa));
         }}
       />
 
@@ -1191,7 +1211,7 @@ export default function Caixa() {
       <Dialog open={dialogFechamento} onOpenChange={setDialogFechamento}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Fechar Caixa #{caixaAberto?.numero_caixa}</DialogTitle>
+            <DialogTitle>Fechar Caixa #{getNumCaixa(caixaAberto)}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">

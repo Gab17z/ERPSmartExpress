@@ -50,8 +50,18 @@ export default function Logs() {
 
   const { data: caixas = [] } = useQuery({
     queryKey: ['caixas'],
-    queryFn: () => base44.entities.Caixa.list('-created_date', 100),
+    queryFn: () => base44.entities.Caixa.list('-created_date'),
   });
+
+  // Mapa de numeração sequencial: ordena por data de criação e atribui 1, 2, 3...
+  const numeroCaixaMap = React.useMemo(() => {
+    const sorted = [...caixas].sort(
+      (a, b) => new Date(a.created_date || a.data_abertura) - new Date(b.created_date || b.data_abertura)
+    );
+    const map = {};
+    sorted.forEach((c, idx) => { map[c.id] = idx + 1; });
+    return map;
+  }, [caixas]);
 
   const logsFiltrados = logs.filter(log => filtrarPorData(log.data_hora));
 
@@ -474,7 +484,7 @@ export default function Logs() {
                 <TableBody>
                   {logsCaixa.slice((paginaTab.caixa - 1) * ITENS_POR_PAGINA, paginaTab.caixa * ITENS_POR_PAGINA).map((caixa) => (
                     <TableRow key={caixa.id}>
-                      <TableCell className="font-bold">#{caixa.numero_caixa}</TableCell>
+                      <TableCell className="font-bold">#{numeroCaixaMap[caixa.id] || caixa.numero_caixa}</TableCell>
                       <TableCell className="text-xs">{format(new Date(caixa.data_abertura), 'dd/MM/yyyy HH:mm')}</TableCell>
                       <TableCell>{caixa.usuario_abertura}</TableCell>
                       <TableCell className="text-xs">{caixa.data_fechamento ? format(new Date(caixa.data_fechamento), 'dd/MM/yyyy HH:mm') : '-'}</TableCell>
