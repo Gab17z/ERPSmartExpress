@@ -892,17 +892,28 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
 
     setValidandoVendedor(true);
     try {
-      // Buscar vendedor pela senha de autorização
-      const vendedor = usuariosSistema.find(
+      // CORREÇÃO: Buscar dados FRESCOS do banco para evitar nomes desatualizados pelo cache
+      const usuariosFrescos = await base44.entities.UsuarioSistema.list('nome');
+
+      // Buscar TODOS os vendedores que batem com a senha (para detectar duplicatas)
+      const vendedoresComSenha = usuariosFrescos.filter(
         u => u.senha_autorizacao === senhaVendedor && u.ativo !== false
       );
 
-      if (!vendedor) {
+      if (vendedoresComSenha.length === 0) {
         toast.error("Senha inválida! Vendedor não encontrado.");
         setSenhaVendedor("");
         senhaVendedorRef.current?.focus();
         return;
       }
+
+      // CORREÇÃO: Alertar se houver mais de um vendedor com a mesma senha
+      if (vendedoresComSenha.length > 1) {
+        const nomes = vendedoresComSenha.map(v => v.nome).join(', ');
+        toast.warning(`⚠️ ATENÇÃO: ${vendedoresComSenha.length} vendedores com a mesma senha: ${nomes}. Altere nas Configurações!`, { duration: 6000 });
+      }
+
+      const vendedor = vendedoresComSenha[0];
 
       // Vendedor autenticado com sucesso
       setVendedorSelecionado(vendedor);

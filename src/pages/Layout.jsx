@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { base44 } from "@/api/supabaseClient";
 import {
   LayoutDashboard,
   Users,
@@ -474,14 +475,35 @@ export default function Layout({ children, currentPageName }) {
     return () => window.removeEventListener('configuracoes_atualizadas', handleConfigUpdate);
   }, []);
 
-  const loadConfiguracoes = () => {
+  const loadConfiguracoes = async () => {
+    // 1. Carregar do localStorage primeiro (instantâneo, para pintura rápida)
     const configSalva = localStorage.getItem('configuracoes_erp');
     if (configSalva) {
       try {
         setConfiguracoes(JSON.parse(configSalva));
       } catch (error) {
-        console.error("Erro ao carregar configurações:", error);
+        console.error("Erro ao carregar configurações do localStorage:", error);
       }
+    }
+
+    // 2. CORREÇÃO: Buscar do banco de dados (fonte de verdade) para garantir sincronização entre PCs
+    try {
+      const configDB = await base44.entities.Configuracao.filter({ chave: 'sistema_geral' });
+      if (configDB && configDB.length > 0 && configDB[0].valor) {
+        const parsed = configDB[0].valor;
+        // Atualizar estado e localStorage com os dados do banco
+        setConfiguracoes(prev => {
+          const merged = { ...prev, ...parsed };
+          // Garantir que campos aninhados não percam dados
+          if (parsed.empresa) merged.empresa = { ...(prev?.empresa || {}), ...parsed.empresa };
+          if (parsed.pdv) merged.pdv = { ...(prev?.pdv || {}), ...parsed.pdv };
+          if (parsed.sistema) merged.sistema = { ...(prev?.sistema || {}), ...parsed.sistema };
+          localStorage.setItem('configuracoes_erp', JSON.stringify(merged));
+          return merged;
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao carregar configurações do banco:", error);
     }
   };
 

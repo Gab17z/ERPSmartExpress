@@ -32,7 +32,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Edit, AlertTriangle, Package, Camera, Loader2, Trash2, Video, Printer, AlertCircle, Upload, FileUp } from "lucide-react";
+import { Plus, Search, Edit, AlertTriangle, Package, Camera, Loader2, Trash2, Video, Printer, AlertCircle, Upload, FileUp, DollarSign, ArrowUpDown, Check, CheckSquare, Square, Filter, TrendingUp, TrendingDown, Minus, Percent } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -85,6 +86,18 @@ export default function Produtos() {
   const videoRef = React.useRef(null);
   const canvasRef = React.useRef(null);
   const [camposInvalidos, setCamposInvalidos] = useState([]);
+
+  // === AJUSTE DE CUSTO EM LOTE ===
+  const [dialogAjusteCusto, setDialogAjusteCusto] = useState(false);
+  const [ajusteSelecionados, setAjusteSelecionados] = useState([]);
+  const [ajusteTipo, setAjusteTipo] = useState('percentual_aumento'); // percentual_aumento, percentual_reducao, valor_fixo, valor_soma, valor_subtracao
+  const [ajusteValor, setAjusteValor] = useState('');
+  const [ajustePreview, setAjustePreview] = useState(false);
+  const [ajusteAplicando, setAjusteAplicando] = useState(false);
+  const [ajusteFiltroCategoria, setAjusteFiltroCategoria] = useState('todos');
+  const [ajusteFiltroMarca, setAjusteFiltroMarca] = useState('todos');
+  const [ajusteBusca, setAjusteBusca] = useState('');
+  const [ajusteRecalcularMargem, setAjusteRecalcularMargem] = useState(true);
 
   const [etiquetaConfig, setEtiquetaConfig] = useState({
     tamanho: "40x25_2col",
@@ -966,6 +979,182 @@ export default function Produtos() {
     return produtos.filter(p => p.estoque_atual <= p.estoque_minimo && p.ativo);
   }, [produtos]);
 
+  // === LÓGICA AJUSTE DE CUSTO EM LOTE ===
+  const produtosAtivos = useMemo(() => {
+    return produtos.filter(p => p.ativo !== false);
+  }, [produtos]);
+
+  const produtosFiltradosAjuste = useMemo(() => {
+    return produtosAtivos
+      .filter(p => {
+        if (ajusteFiltroCategoria !== 'todos' && p.categoria !== ajusteFiltroCategoria) return false;
+        if (ajusteFiltroMarca !== 'todos' && p.marca_nome !== ajusteFiltroMarca) return false;
+        if (ajusteBusca) {
+          const busca = ajusteBusca.toLowerCase();
+          return p.nome?.toLowerCase().includes(busca) || p.sku?.toLowerCase().includes(busca);
+        }
+        return true;
+      });
+  }, [produtosAtivos, ajusteFiltroCategoria, ajusteFiltroMarca, ajusteBusca]);
+
+  const categoriasUnicas = useMemo(() => {
+    const cats = [...new Set(produtosAtivos.map(p => p.categoria).filter(Boolean))];
+    return cats.sort();
+  }, [produtosAtivos]);
+
+  const marcasUnicas = useMemo(() => {
+    const m = [...new Set(produtosAtivos.map(p => p.marca_nome).filter(Boolean))];
+    return m.sort();
+  }, [produtosAtivos]);
+
+  const ajusteValorNumerico = useMemo(() => parseFloat(ajusteValor) || 0, [ajusteValor]);
+
+  const calcularNovoCusto = useCallback((custoAtual) => {
+    if (ajusteValorNumerico <= 0) return custoAtual;
+
+    switch (ajusteTipo) {
+      case 'percentual_aumento':
+        return custoAtual * (1 + ajusteValorNumerico / 100);
+      case 'percentual_reducao':
+        return Math.max(0, custoAtual * (1 - ajusteValorNumerico / 100));
+      case 'valor_fixo':
+        return ajusteValorNumerico;
+      case 'valor_soma':
+        return custoAtual + ajusteValorNumerico;
+      case 'valor_subtracao':
+        return Math.max(0, custoAtual - ajusteValorNumerico);
+      default:
+        return custoAtual;
+    }
+  }, [ajusteTipo, ajusteValorNumerico]);
+
+  const previewDados = useMemo(() => {
+    if (!ajustePreview || ajusteSelecionados.length === 0) return [];
+    return ajusteSelecionados.map(id => {
+      const produto = produtos.find(p => p.id === id);
+      if (!produto) return null;
+      const custoAtual = parseFloat(produto.preco_custo) || 0;
+      const novoCusto = calcularNovoCusto(custoAtual);
+      const precoVenda = parseFloat(produto.preco_venda) || 0;
+      const margemAtual = custoAtual > 0 ? ((precoVenda - custoAtual) / custoAtual * 100) : 0;
+      const novaMargemCalc = novoCusto > 0 ? ((precoVenda - novoCusto) / novoCusto * 100) : 0;
+      return {
+        ...produto,
+        custoAtual,
+        novoCusto: Math.round(novoCusto * 100) / 100,
+        margemAtual: Math.round(margemAtual * 100) / 100,
+        novaMargem: Math.round(novaMargemCalc * 100) / 100,
+        diferenca: Math.round((novoCusto - custoAtual) * 100) / 100
+      };
+    }).filter(Boolean);
+  }, [ajustePreview, ajusteSelecionados, produtos, calcularNovoCusto]);
+
+  const handleToggleSelecionado = (id) => {
+    setAjusteSelecionados(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelecionarTodosFiltrados = () => {
+    const idsFiltrados = produtosFiltradosAjuste.map(p => p.id);
+    const todosJaSelecionados = idsFiltrados.every(id => ajusteSelecionados.includes(id));
+    if (todosJaSelecionados) {
+      setAjusteSelecionados(prev => prev.filter(id => !idsFiltrados.includes(id)));
+    } else {
+      setAjusteSelecionados(prev => [...new Set([...prev, ...idsFiltrados])]);
+    }
+  };
+
+  const handleAbrirAjusteCusto = () => {
+    setAjusteSelecionados([]);
+    setAjusteTipo('percentual_aumento');
+    setAjusteValor('');
+    setAjustePreview(false);
+    setAjusteFiltroCategoria('todos');
+    setAjusteFiltroMarca('todos');
+    setAjusteBusca('');
+    setAjusteRecalcularMargem(true);
+    setDialogAjusteCusto(true);
+  };
+
+  const handleAplicarAjusteCusto = async () => {
+    if (ajusteSelecionados.length === 0) {
+      toast.error('Selecione pelo menos um produto!');
+      return;
+    }
+    if (ajusteValorNumerico <= 0) {
+      toast.error('Informe um valor válido para o ajuste!');
+      return;
+    }
+
+    setAjusteAplicando(true);
+    let sucesso = 0;
+    let erros = 0;
+
+    try {
+      for (const id of ajusteSelecionados) {
+        const produto = produtos.find(p => p.id === id);
+        if (!produto) continue;
+
+        const custoAtual = parseFloat(produto.preco_custo) || 0;
+        const novoCusto = Math.round(calcularNovoCusto(custoAtual) * 100) / 100;
+        const precoVenda = parseFloat(produto.preco_venda) || 0;
+
+        const dadosAtualizar = { preco_custo: novoCusto };
+
+        if (ajusteRecalcularMargem && novoCusto > 0 && precoVenda > 0) {
+          dadosAtualizar.margem_lucro = Math.round(((precoVenda - novoCusto) / novoCusto * 100) * 100) / 100;
+        }
+
+        try {
+          await base44.entities.Produto.update(id, dadosAtualizar);
+          sucesso++;
+        } catch (err) {
+          console.error(`Erro ao atualizar produto ${produto.nome}:`, err);
+          erros++;
+        }
+      }
+
+      // Registrar log de auditoria do ajuste em lote
+      try {
+        const tipoLabel = {
+          'percentual_aumento': `Aumento de ${ajusteValorNumerico}%`,
+          'percentual_reducao': `Redução de ${ajusteValorNumerico}%`,
+          'valor_fixo': `Valor fixo R$ ${ajusteValorNumerico.toFixed(2)}`,
+          'valor_soma': `Soma de R$ ${ajusteValorNumerico.toFixed(2)}`,
+          'valor_subtracao': `Subtração de R$ ${ajusteValorNumerico.toFixed(2)}`
+        };
+        await base44.entities.LogAuditoria.create({
+          usuario_id: user?.id || 'sistema',
+          usuario_nome: user?.nome || 'Sistema',
+          acao: 'editar',
+          recurso: 'Produto',
+          recurso_id: 'lote',
+          descricao: `Ajuste de custo em lote: ${tipoLabel[ajusteTipo]} aplicado a ${sucesso} produto(s)`,
+          dados_depois: { tipo: ajusteTipo, valor: ajusteValorNumerico, produtos_afetados: sucesso },
+          data_hora: new Date().toISOString()
+        });
+      } catch (logError) {
+        console.error('Erro ao registrar log:', logError);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['produtos'] });
+
+      if (erros === 0) {
+        toast.success(`✅ ${sucesso} produto(s) atualizado(s) com sucesso!`);
+      } else {
+        toast.warning(`⚠️ ${sucesso} atualizado(s), ${erros} com erro.`);
+      }
+
+      setDialogAjusteCusto(false);
+    } catch (error) {
+      console.error('Erro no ajuste em lote:', error);
+      toast.error('Erro ao aplicar ajuste em lote.');
+    } finally {
+      setAjusteAplicando(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -982,6 +1171,12 @@ export default function Produtos() {
             <Upload className="w-4 h-4 mr-2" />
             Importar
           </Button>
+          {podVerCustos && (
+            <Button onClick={handleAbrirAjusteCusto} variant="outline" className="border-amber-600 text-amber-600 hover:bg-amber-50">
+              <DollarSign className="w-4 h-4 mr-2" />
+              Ajustar Custos
+            </Button>
+          )}
           <Button onClick={() => handleOpenDialog()} className="bg-blue-600 hover:bg-blue-700">
             <Plus className="w-4 h-4 mr-2" />
             Novo Produto
@@ -1654,6 +1849,316 @@ export default function Produtos() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogEtiqueta(false)}>Cancelar</Button>
             <Button onClick={imprimirEtiqueta}><Printer className="w-4 h-4 mr-2" />Imprimir</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Ajuste de Custo em Lote */}
+      <Dialog open={dialogAjusteCusto} onOpenChange={(open) => {
+        setDialogAjusteCusto(open);
+        if (!open) setAjustePreview(false);
+      }}>
+        <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <div className="p-2 bg-amber-100 rounded-lg">
+                <DollarSign className="w-5 h-5 text-amber-700" />
+              </div>
+              Ajuste de Preço de Custo em Lote
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Painel de Configuração do Ajuste */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200">
+              <div>
+                <Label className="text-sm font-semibold text-amber-900 mb-2 block">Tipo de Ajuste</Label>
+                <Select value={ajusteTipo} onValueChange={(v) => { setAjusteTipo(v); setAjustePreview(false); }}>
+                  <SelectTrigger className="bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentual_aumento">
+                      <span className="flex items-center gap-2"><TrendingUp className="w-4 h-4 text-green-600" /> Aumento Percentual (%)</span>
+                    </SelectItem>
+                    <SelectItem value="percentual_reducao">
+                      <span className="flex items-center gap-2"><TrendingDown className="w-4 h-4 text-red-600" /> Redução Percentual (%)</span>
+                    </SelectItem>
+                    <SelectItem value="valor_fixo">
+                      <span className="flex items-center gap-2"><DollarSign className="w-4 h-4 text-blue-600" /> Valor Fixo (R$)</span>
+                    </SelectItem>
+                    <SelectItem value="valor_soma">
+                      <span className="flex items-center gap-2"><Plus className="w-4 h-4 text-green-600" /> Somar Valor (R$)</span>
+                    </SelectItem>
+                    <SelectItem value="valor_subtracao">
+                      <span className="flex items-center gap-2"><Minus className="w-4 h-4 text-red-600" /> Subtrair Valor (R$)</span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-sm font-semibold text-amber-900 mb-2 block">
+                  {ajusteTipo.includes('percentual') ? 'Percentual (%)' : 'Valor (R$)'}
+                </Label>
+                {ajusteTipo.includes('percentual') ? (
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={ajusteValor}
+                      onChange={(e) => { setAjusteValor(e.target.value); }}
+                      placeholder="Ex: 10"
+                      className="bg-white pr-8"
+                      onFocus={(e) => e.target.select()}
+                    />
+                    <Percent className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  </div>
+                ) : (
+                  <InputMoeda
+                    value={ajusteValorNumerico || ''}
+                    onChange={(v) => { setAjusteValor(String(v || '')); }}
+                    className="bg-white"
+                  />
+                )}
+              </div>
+
+              <div className="flex flex-col justify-end">
+                <div className="flex items-center gap-2 mb-2">
+                  <Switch checked={ajusteRecalcularMargem} onCheckedChange={setAjusteRecalcularMargem} />
+                  <Label className="text-sm text-amber-800">Recalcular margem</Label>
+                </div>
+                <div className="p-2 bg-amber-100/60 rounded-lg">
+                  <p className="text-xs text-amber-700">
+                    <strong>{ajusteSelecionados.length}</strong> produto(s) selecionado(s)
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Filtros da Tabela */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-slate-500" />
+                <span className="text-sm font-medium text-slate-600">Filtrar:</span>
+              </div>
+              <Select value={ajusteFiltroCategoria} onValueChange={setAjusteFiltroCategoria}>
+                <SelectTrigger className="w-[180px] h-9">
+                  <SelectValue placeholder="Categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todas Categorias</SelectItem>
+                  {categoriasUnicas.map(cat => (
+                    <SelectItem key={cat} value={cat}>{cat?.replace(/_/g, ' ')}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={ajusteFiltroMarca} onValueChange={setAjusteFiltroMarca}>
+                <SelectTrigger className="w-[180px] h-9">
+                  <SelectValue placeholder="Marca" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todas Marcas</SelectItem>
+                  {marcasUnicas.map(m => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  value={ajusteBusca}
+                  onChange={(e) => setAjusteBusca(e.target.value)}
+                  placeholder="Buscar por nome ou SKU..."
+                  className="pl-9 h-9"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSelecionarTodosFiltrados}
+                className="h-9"
+              >
+                {produtosFiltradosAjuste.every(p => ajusteSelecionados.includes(p.id))
+                  ? <><CheckSquare className="w-4 h-4 mr-1" /> Desmarcar Todos</>
+                  : <><Square className="w-4 h-4 mr-1" /> Selecionar Todos ({produtosFiltradosAjuste.length})</>}
+              </Button>
+            </div>
+
+            {/* Tabela de Produtos para Seleção / Preview */}
+            <div className="rounded-lg border max-h-[40vh] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50 sticky top-0 z-10">
+                    <TableHead className="w-10"></TableHead>
+                    <TableHead className="w-16">SKU</TableHead>
+                    <TableHead>Produto</TableHead>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead>Marca</TableHead>
+                    <TableHead className="text-right">Custo Atual</TableHead>
+                    <TableHead className="text-right">Preço Venda</TableHead>
+                    <TableHead className="text-right">Margem Atual</TableHead>
+                    {ajustePreview && (
+                      <>
+                        <TableHead className="text-right bg-amber-50">Novo Custo</TableHead>
+                        <TableHead className="text-right bg-amber-50">Nova Margem</TableHead>
+                        <TableHead className="text-right bg-amber-50">Diferença</TableHead>
+                      </>
+                    )}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {produtosFiltradosAjuste.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={ajustePreview ? 11 : 8} className="text-center py-8 text-slate-500">
+                        Nenhum produto encontrado com os filtros aplicados.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    produtosFiltradosAjuste.map((produto) => {
+                      const selecionado = ajusteSelecionados.includes(produto.id);
+                      const custoAtual = parseFloat(produto.preco_custo) || 0;
+                      const precoVenda = parseFloat(produto.preco_venda) || 0;
+                      const margemAtual = custoAtual > 0 ? ((precoVenda - custoAtual) / custoAtual * 100) : 0;
+                      const prev = ajustePreview && selecionado ? previewDados.find(p => p?.id === produto.id) : null;
+
+                      return (
+                        <TableRow
+                          key={produto.id}
+                          className={`cursor-pointer transition-colors ${
+                            selecionado
+                              ? 'bg-amber-50 hover:bg-amber-100'
+                              : 'hover:bg-slate-50'
+                          }`}
+                          onClick={() => handleToggleSelecionado(produto.id)}
+                        >
+                          <TableCell className="p-2">
+                            <Checkbox
+                              checked={selecionado}
+                              onCheckedChange={() => handleToggleSelecionado(produto.id)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{produto.sku}</TableCell>
+                          <TableCell className="font-medium text-sm">{produto.nome}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">{produto.categoria?.replace(/_/g, ' ')}</Badge>
+                          </TableCell>
+                          <TableCell className="text-sm">{produto.marca_nome || '-'}</TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            R$ {custoAtual.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm text-green-600">
+                            R$ {precoVenda.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant="secondary" className="text-xs">
+                              {margemAtual.toFixed(1)}%
+                            </Badge>
+                          </TableCell>
+                          {ajustePreview && prev && (
+                            <>
+                              <TableCell className="text-right font-mono text-sm font-semibold bg-amber-50/50">
+                                R$ {prev.novoCusto.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right bg-amber-50/50">
+                                <Badge
+                                  variant="secondary"
+                                  className={`text-xs ${
+                                    prev.novaMargem < margemAtual ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                                  }`}
+                                >
+                                  {prev.novaMargem.toFixed(1)}%
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right font-mono text-sm bg-amber-50/50">
+                                <span className={prev.diferenca > 0 ? 'text-red-600' : prev.diferenca < 0 ? 'text-green-600' : ''}>
+                                  {prev.diferenca > 0 ? '+' : ''}{prev.diferenca.toFixed(2)}
+                                </span>
+                              </TableCell>
+                            </>
+                          )}
+                          {ajustePreview && !prev && (
+                            <>
+                              <TableCell className="bg-slate-50" />
+                              <TableCell className="bg-slate-50" />
+                              <TableCell className="bg-slate-50" />
+                            </>
+                          )}
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Resumo do Preview */}
+            {ajustePreview && previewDados.length > 0 && (
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                  <ArrowUpDown className="w-4 h-4" />
+                  Resumo do Ajuste
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div className="bg-white p-3 rounded-lg">
+                    <p className="text-slate-500 text-xs">Produtos afetados</p>
+                    <p className="font-bold text-lg text-blue-700">{previewDados.length}</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-lg">
+                    <p className="text-slate-500 text-xs">Custo total anterior</p>
+                    <p className="font-bold text-lg">R$ {previewDados.reduce((s, p) => s + p.custoAtual, 0).toFixed(2)}</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-lg">
+                    <p className="text-slate-500 text-xs">Novo custo total</p>
+                    <p className="font-bold text-lg text-amber-700">R$ {previewDados.reduce((s, p) => s + p.novoCusto, 0).toFixed(2)}</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-lg">
+                    <p className="text-slate-500 text-xs">Diferença total</p>
+                    <p className={`font-bold text-lg ${previewDados.reduce((s, p) => s + p.diferenca, 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      R$ {previewDados.reduce((s, p) => s + p.diferenca, 0).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-4 border-t">
+            <Button variant="outline" onClick={() => setDialogAjusteCusto(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="outline"
+              className="border-blue-600 text-blue-600 hover:bg-blue-50"
+              onClick={() => {
+                if (ajusteSelecionados.length === 0) {
+                  toast.error('Selecione pelo menos um produto!');
+                  return;
+                }
+                if (ajusteValorNumerico <= 0) {
+                  toast.error('Informe um valor válido!');
+                  return;
+                }
+                setAjustePreview(true);
+              }}
+              disabled={ajusteSelecionados.length === 0 || ajusteValorNumerico <= 0}
+            >
+              <Search className="w-4 h-4 mr-2" />
+              Visualizar Preview
+            </Button>
+            <Button
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={handleAplicarAjusteCusto}
+              disabled={ajusteAplicando || ajusteSelecionados.length === 0 || ajusteValorNumerico <= 0}
+            >
+              {ajusteAplicando ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Aplicando...</>
+              ) : (
+                <><Check className="w-4 h-4 mr-2" /> Aplicar Ajuste ({ajusteSelecionados.length})</>
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
