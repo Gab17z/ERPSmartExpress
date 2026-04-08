@@ -54,15 +54,17 @@ export default function Devolucoes() {
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      const proximoNumero = devolucoes.length + 1;
-      const codigo = `DEV-${proximoNumero.toString().padStart(5, '0')}`;
-      
+      // Mapeamento correto para as colunas do Supabase + proteção contra campos falsos
       const devolucao = await base44.entities.Devolucao.create({
-        ...data,
-        codigo_devolucao: codigo,
-        data_solicitacao: new Date().toISOString(),
-        status: "pendente",
-        responsavel: user?.nome
+        venda_id: data.venda_id,
+        cliente_id: data.cliente_id || null,
+        cliente_nome: data.cliente_nome,
+        itens: data.itens_devolvidos,
+        valor_total: data.valor_total_reembolso,
+        motivo: data.tipo === 'troca' ? `[TROCA] ${data.motivo_devolucao}` : data.motivo_devolucao,
+        tipo_reembolso: data.tipo === 'troca' ? 'troca' : data.forma_reembolso,
+        usuario_id: user?.id,
+        status: "pendente"
       });
 
       return devolucao;
@@ -76,13 +78,19 @@ export default function Devolucoes() {
 
   const aprovarMutation = useMutation({
     mutationFn: async (devolucaoId) => {
-      const devolucao = devolucoes.find(d => d.id === devolucaoId);
+      // CRÍTICO: Buscar dados frescos do banco
+      const devolucaoDb = await base44.entities.Devolucao.filter({ id: devolucaoId });
+      const devolucao = devolucaoDb[0];
+      
+      if (!devolucao) throw new Error("Devolução não encontrada no banco");
+      if (devolucao.status !== "pendente") throw new Error("A devolução já foi processada");
+
+      const itens = typeof devolucao.itens === 'string' ? JSON.parse(devolucao.itens) : devolucao.itens;
       
       // CRÍTICO: Reverter estoque
-      for (const item of devolucao.itens_devolvidos) {
+      for (const item of (itens || [])) {
         const produtos = await base44.entities.Produto.filter({ id: item.produto_id });
         if (produtos[0]) {
-          // CRÍTICO: Atualizar estoque com validação
           const novoEstoque = (parseFloat(produtos[0].estoque_atual) || 0) + (parseInt(item.quantidade) || 0);
           await base44.entities.Produto.update(item.produto_id, {
             estoque_atual: novoEstoque
@@ -96,10 +104,35 @@ export default function Devolucoes() {
             estoque_anterior: parseFloat(produtos[0].estoque_atual) || 0,
             estoque_novo: novoEstoque,
             motivo: "Devolução",
-            documento_referencia: devolucao.codigo_devolucao,
+            documento_referencia: `DEV-${devolucao.id?.substring(0,6).toUpperCase()}`,
             usuario_responsavel: user?.nome,
             data_movimentacao: new Date().toISOString()
           });
+        }
+      }
+
+      // CRÍTICO: Registar saída no caixa (se houver caixa aberto)
+      if (devolucao.tipo_reembolso !== 'troca') {
+        try {
+          const caixasAbertos = await base44.entities.Caixa.filter({ status: 'aberto' });
+          if (caixasAbertos.length > 0) {
+            const caixaAtivo = caixasAbertos[0];
+            await base44.entities.MovimentacaoCaixa.create({
+              caixa_id: caixaAtivo.id,
+              tipo: "saida",
+              categoria: "Devolução",
+              descricao: `Devolução de Venda DEV-${devolucao.id?.substring(0,6).toUpperCase()}`,
+              valor: parseFloat(devolucao.valor_total) || 0,
+              forma_pagamento: devolucao.tipo_reembolso,
+              data_hora: new Date().toISOString(),
+              usuario_responsavel: user?.nome || 'Sistema'
+            });
+            // Opcional: Atualizar saldo atual do caixa
+            const novoSaldo = parseFloat(caixaAtivo.saldo_atual) - (parseFloat(devolucao.valor_total) || 0);
+            await base44.entities.Caixa.update(caixaAtivo.id, { saldo_atual: novoSaldo });
+          }
+        } catch (e) {
+          console.error("Erro ao registrar no caixa:", e);
         }
       }
 
@@ -110,7 +143,7 @@ export default function Devolucoes() {
           const comissao = comissoes[0];
           await base44.entities.Comissao.update(comissao.id, {
             status: "cancelada",
-            observacao: `Comissão cancelada - Devolução ${devolucao.codigo_devolucao}`
+            observacao: `Comissão cancelada - Devolução DEV-${devolucao.id?.substring(0,6).toUpperCase()}`
           });
         }
       } catch (error) {
@@ -118,15 +151,30 @@ export default function Devolucoes() {
       }
 
       return base44.entities.Devolucao.update(devolucaoId, {
-        status: "aprovada",
-        data_finalizacao: new Date().toISOString()
+        status: "aprovada"
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devolucoes'] });
       queryClient.invalidateQueries({ queryKey: ['produtos'] });
-      toast.success("Devolução aprovada e estoque atualizado!");
+      queryClient.invalidateQueries({ queryKey: ['caixas'] });
+      toast.success("Devolução aprovada e processo finalizado!");
     },
+    onError: (err) => {
+      toast.error(`Erro ao aprovar: ${err.message}`);
+    }
+  });
+
+  const rejeitarMutation = useMutation({
+    mutationFn: async (devolucaoId) => {
+      return base44.entities.Devolucao.update(devolucaoId, {
+        status: "rejeitada"
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['devolucoes'] });
+      toast.success("Devolução rejeitada.");
+    }
   });
 
   const resetForm = () => {
@@ -145,10 +193,18 @@ export default function Devolucoes() {
   };
 
   const selecionarVenda = (venda) => {
+    // Proteger contra devolução dupla
+    const devolucaoExistente = devolucoes.find(d => d.venda_id === venda.id && d.status !== 'rejeitada');
+    if (devolucaoExistente) {
+      toast.error("Venda indisponível: Já existe uma devolução aguardando ou aprovada para esta venda!");
+      return;
+    }
+
     setFormData({
       ...formData,
       venda_id: venda.id,
       codigo_venda: venda.codigo_venda,
+      cliente_id: venda.cliente_id,
       cliente_nome: venda.cliente_nome,
       itens_devolvidos: (venda.itens || []).map(item => ({
         ...item,
@@ -216,37 +272,41 @@ export default function Devolucoes() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {devolucoes.map((dev) => (
-                <TableRow key={dev.id}>
-                  <TableCell className="font-mono">{dev.codigo_devolucao}</TableCell>
-                  <TableCell className="font-mono text-xs">{dev.codigo_venda}</TableCell>
-                  <TableCell>{dev.cliente_nome}</TableCell>
-                  <TableCell>
-                    <Badge variant={dev.tipo === "devolucao" ? "destructive" : "default"}>
-                      {dev.tipo}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{dev.itens_devolvidos?.length || 0}</TableCell>
-                  <TableCell className="font-bold text-orange-600">R$ {(parseFloat(dev.valor_total_reembolso) || 0).toFixed(2)}</TableCell>
-                  <TableCell>
-                    <Badge variant={dev.status === "aprovada" ? "default" : dev.status === "pendente" ? "secondary" : "destructive"}>
-                      {dev.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {dev.status === "pendente" && (
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => aprovarMutation.mutate(dev.id)} className="bg-green-600">
-                          <Check className="w-3 h-3" />
-                        </Button>
-                        <Button size="sm" variant="outline" className="text-red-600">
-                          <X className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {devolucoes.map((dev) => {
+                const isJSON = typeof dev.itens === 'string';
+                const parsedItens = isJSON ? JSON.parse(dev.itens || "[]") : (dev.itens || []);
+                return (
+                  <TableRow key={dev.id}>
+                    <TableCell className="font-mono text-sm">DEV-{dev.id?.substring(0, 6)?.toUpperCase()}</TableCell>
+                    <TableCell className="font-mono text-xs">{dev.venda?.codigo_venda || "N/D"}</TableCell>
+                    <TableCell>{dev.cliente_nome}</TableCell>
+                    <TableCell>
+                      <Badge variant={dev.tipo_reembolso === "troca" ? "default" : "destructive"}>
+                        {dev.tipo_reembolso?.toUpperCase()}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{parsedItens?.length || 0}</TableCell>
+                    <TableCell className="font-bold text-orange-600">R$ {(parseFloat(dev.valor_total) || 0).toFixed(2)}</TableCell>
+                    <TableCell>
+                      <Badge variant={dev.status === "aprovada" ? "default" : dev.status === "pendente" ? "secondary" : "destructive"}>
+                        {dev.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {dev.status === "pendente" && (
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={() => aprovarMutation.mutate(dev.id)} className="bg-green-600">
+                            <Check className="w-3 h-3" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => rejeitarMutation.mutate(dev.id)} className="text-red-600">
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
@@ -328,7 +388,11 @@ export default function Devolucoes() {
                             value={item.valor_reembolso}
                             onChange={(e) => {
                               const novosItens = [...formData.itens_devolvidos];
-                              novosItens[index].valor_reembolso = parseFloat(e.target.value) || 0;
+                              let val = parseFloat(e.target.value) || 0;
+                              // Trava Segurança: Não permitir reembolso maior que o pago
+                              const valMax = parseFloat(item.subtotal) || 0;
+                              if (val > valMax) val = valMax;
+                              novosItens[index].valor_reembolso = val;
                               setFormData({ ...formData, itens_devolvidos: novosItens });
                             }}
                             className="w-28"
