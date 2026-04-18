@@ -587,7 +587,18 @@ export default function AgendaCompleta() {
                           <Button size="sm" variant="outline" onClick={() => editarEvento(evento)}>
                             <Edit className="w-3 h-3" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="text-red-600" onClick={() => deleteMutation.mutate(evento.id)}>
+                          <Button size="sm" variant="ghost" className="text-red-600" onClick={async () => {
+                            const resposta = await confirm({
+                              title: "Excluir Evento",
+                              description: "Tem certeza que deseja excluir este evento?",
+                              confirmText: "Sim, Excluir",
+                              cancelText: "Cancelar",
+                              type: "confirm"
+                            });
+                            if (resposta) {
+                              deleteMutation.mutate(evento.id);
+                            }
+                          }}>
                             <Trash2 className="w-3 h-3" />
                           </Button>
                         </div>
@@ -629,7 +640,18 @@ export default function AgendaCompleta() {
                           <Button size="sm" variant="outline" onClick={() => editarEvento(evento)}>
                             <Edit className="w-3 h-3" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="text-red-600" onClick={() => deleteMutation.mutate(evento.id)}>
+                          <Button size="sm" variant="ghost" className="text-red-600" onClick={async () => {
+                            const resposta = await confirm({
+                              title: "Excluir Evento",
+                              description: "Tem certeza que deseja excluir este evento?",
+                              confirmText: "Sim, Excluir",
+                              cancelText: "Cancelar",
+                              type: "confirm"
+                            });
+                            if (resposta) {
+                              deleteMutation.mutate(evento.id);
+                            }
+                          }}>
                             <Trash2 className="w-3 h-3" />
                           </Button>
                         </div>
@@ -682,7 +704,18 @@ export default function AgendaCompleta() {
                         <Button size="sm" variant="outline" onClick={() => editarEvento(evento)}>
                           <Edit className="w-3 h-3" />
                         </Button>
-                        <Button size="sm" variant="ghost" className="text-red-600" onClick={() => deleteMutation.mutate(evento.id)}>
+                        <Button size="sm" variant="ghost" className="text-red-600" onClick={async () => {
+                          const resposta = await confirm({
+                            title: "Excluir Evento",
+                            description: "Tem certeza que deseja excluir este evento?",
+                            confirmText: "Sim, Excluir",
+                            cancelText: "Cancelar",
+                            type: "confirm"
+                          });
+                          if (resposta) {
+                            deleteMutation.mutate(evento.id);
+                          }
+                        }}>
                           <Trash2 className="w-3 h-3" />
                         </Button>
                       </div>

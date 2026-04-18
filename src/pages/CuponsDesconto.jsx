@@ -12,8 +12,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Ticket, Edit, Trash2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { useConfirm } from '@/contexts/ConfirmContext';
 
 export default function CuponsDesconto() {
+  const confirm = useConfirm();
   const [dialogCupom, setDialogCupom] = useState(false);
   const [editingCupom, setEditingCupom] = useState(null);
   const [formData, setFormData] = useState({
@@ -229,7 +231,18 @@ export default function CuponsDesconto() {
                     <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(cupom)}>
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => deleteMutation.mutate(cupom.id)}>
+                    <Button variant="ghost" size="sm" onClick={async () => {
+                      const resposta = await confirm({
+                        title: "Excluir Cupom",
+                        description: `Tem certeza que deseja excluir o cupom "${cupom.codigo}"?\n\nEsta ação não pode ser desfeita!`,
+                        confirmText: "Sim, Excluir",
+                        cancelText: "Cancelar",
+                        type: "confirm"
+                      });
+                      if (resposta) {
+                        deleteMutation.mutate(cupom.id);
+                      }
+                    }}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </TableCell>

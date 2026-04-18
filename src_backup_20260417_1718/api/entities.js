@@ -1,0 +1,47 @@
+import { entities, auth } from './supabaseClient';
+
+export const Cargo = entities.Cargo;
+export const Usuario = entities.Usuario;
+export const Cliente = entities.Cliente;
+export const Marca = entities.Marca;
+export const Fornecedor = entities.Fornecedor;
+export const Produto = entities.Produto;
+export const MovimentacaoEstoque = entities.MovimentacaoEstoque;
+export const Caixa = entities.Caixa;
+export const Venda = entities.Venda;
+export const OrdemServico = entities.OrdemServico;
+export const AvaliacaoSeminovo = entities.AvaliacaoSeminovo;
+export const LogAuditoria = entities.LogAuditoria;
+export const Categoria = entities.Categoria;
+export const Familia = entities.Familia;
+export const UsuarioSistema = entities.UsuarioSistema;
+export const LogDesconto = entities.LogDesconto;
+export const Configuracao = entities.Configuracao;
+export const CupomDesconto = entities.CupomDesconto;
+export const ContaReceber = entities.ContaReceber;
+export const ContaPagar = entities.ContaPagar;
+export const MovimentacaoCaixa = entities.MovimentacaoCaixa;
+export const Evento = entities.Evento;
+export const ContaRecorrente = entities.ContaRecorrente;
+export const Compra = entities.Compra;
+export const Devolucao = entities.Devolucao;
+export const ContaBancaria = entities.ContaBancaria;
+export const Transferencia = entities.Transferencia;
+export const Comissao = entities.Comissao;
+export const DisplaySeminovo = entities.DisplaySeminovo;
+export const ChatbotConfig = entities.ChatbotConfig;
+export const ConversaWhatsApp = entities.ConversaWhatsApp;
+export const PastaWhatsApp = entities.PastaWhatsApp;
+export const EtiquetaWhatsApp = entities.EtiquetaWhatsApp;
+export const ConfigWhatsApp = entities.ConfigWhatsApp;
+export const BackupSistema = entities.BackupSistema;
+export const Notificacao = entities.Notificacao;
+export const Loja = entities.Loja;
+export const PrevisaoVenda = entities.PrevisaoVenda;
+export const TransferenciaEstoque = entities.TransferenciaEstoque;
+export const LeadCRM = entities.LeadCRM;
+export const CategoriaDespesa = entities.CategoriaDespesa;
+export const TipoEvento = entities.TipoEvento;
+
+// Auth
+export const User = auth;
