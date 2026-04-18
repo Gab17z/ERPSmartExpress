@@ -28,7 +28,8 @@ import {
   Trophy,
   Wallet,
   Megaphone,
-  Plug
+  Plug,
+  Table2
 } from "lucide-react";
 import {
   Sidebar,
@@ -104,6 +105,13 @@ const navigationItems = [
     url: createPageUrl("AvaliacaoSeminovo"),
     icon: Smartphone,
     permissions: ["avaliar_seminovos"]
+  },
+  {
+    section: "Vendas e Atendimento",
+    title: "Tabela Smart",
+    url: createPageUrl("Tabela"),
+    icon: Table2,
+    permissions: ["realizar_vendas"]
   },
   // SEÇÃO 3: CLIENTES E MARKETING
   {

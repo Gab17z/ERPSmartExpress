@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { useConfirm } from "@/contexts/ConfirmContext";
 import {
   Dialog,
   DialogContent,
@@ -48,12 +49,19 @@ export default function Caixa() {
     outros: 0
   });
 
-  // Contagem de notas/moedas para fechamento
+  // Contagem de notas/moedas para abertura e fechamento
+  const [contagemAbertura, setContagemAbertura] = useState({
+    notas: { "200": 0, "100": 0, "50": 0, "20": 0, "10": 0, "5": 0, "2": 0 },
+    moedas: { "1": 0, "0.5": 0, "0.25": 0, "0.10": 0, "0.05": 0 },
+    total: 0
+  });
+
   const [contagemNotas, setContagemNotas] = useState({
     notas: { "200": 0, "100": 0, "50": 0, "20": 0, "10": 0, "5": 0, "2": 0 },
     moedas: { "1": 0, "0.5": 0, "0.25": 0, "0.10": 0, "0.05": 0 },
     total: 0
   });
+
   // Detalhe de caixa no histórico
   const [dialogDetalhe, setDialogDetalhe] = useState(false);
   const [caixaSelecionado, setCaixaSelecionado] = useState(null);
@@ -67,9 +75,11 @@ export default function Caixa() {
 
   const queryClient = useQueryClient();
   const { user, hasPermission } = useAuth();
+  const confirm = useConfirm();
 
   // Verificar se usuário pode gerenciar caixa (sangria/suprimento)
   const podeGerenciarCaixa = hasPermission('gerenciar_caixa');
+  const podeSangriaSuprimento = podeGerenciarCaixa || hasPermission('fazer_sangria_suprimento');
 
   const { data: caixas = [], isLoading } = useQuery({
     queryKey: ['caixas'],
@@ -156,12 +166,18 @@ export default function Caixa() {
       // Math.trunc garante inteiro puro — evita qualquer risco de concatenação de string
       const numeroCaixa = Math.trunc(caixasOrdenados.length) + 1;
 
+      // Gerar um resumo em texto para as observações (já que a coluna contagem_abertura pode não existir no DB)
+      const resumoNotas = Object.entries(contagemAbertura.notas || {}).filter(([_, q]) => q > 0).map(([v, q]) => `R$ ${v}: ${q}x`).join(', ');
+      const resumoMoedas = Object.entries(contagemAbertura.moedas || {}).filter(([_, q]) => q > 0).map(([v, q]) => `R$ ${parseFloat(v).toFixed(2)}: ${q}x`).join(', ');
+      const obsAbertura = `Contagem Abertura: [Notas: ${resumoNotas || 'Nenhuma'}] [Moedas: ${resumoMoedas || 'Nenhuma'}]`;
+
       // Não enviar usuario_abertura_id pois sistema usa auth customizada
       return base44.entities.Caixa.create({
         numero_caixa: numeroCaixa,
         usuario_abertura: user?.nome || "Usuário",
         data_abertura: new Date().toISOString(),
         valor_inicial: valorInicial,
+        observacoes: obsAbertura, 
         status: 'aberto'
       });
     },
@@ -170,6 +186,11 @@ export default function Caixa() {
       toast.success("Caixa aberto com sucesso!");
       setDialogAbertura(false);
       setValorInicial(0);
+      setContagemAbertura({
+        notas: { "200": 0, "100": 0, "50": 0, "20": 0, "10": 0, "5": 0, "2": 0 },
+        moedas: { "1": 0, "0.5": 0, "0.25": 0, "0.10": 0, "0.05": 0 },
+        total: 0
+      });
 
       // Imprimir comprovante de abertura
       imprimirAberturaCaixa(caixa);
@@ -484,6 +505,23 @@ export default function Caixa() {
           <span class="bold">Valor Inicial:</span>
           <span class="bold">R$ ${(parseFloat(caixa.valor_inicial) || 0).toFixed(2)}</span>
         </div>
+
+        ${(caixa.contagem_abertura || (caixa.observacoes && caixa.observacoes.includes('Contagem Abertura:'))) ? `
+        <div class="divider"></div>
+        <div class="bold center" style="font-size: 10px; margin-bottom: 5px;">DETALHAMENTO DA ABERTURA</div>
+        <div style="font-size: 10px;">
+          ${caixa.contagem_abertura ? `
+            ${Object.entries(caixa.contagem_abertura.notas || {}).filter(([_, q]) => q > 0).map(([v, q]) => `
+              <div class="item"><span>Notas R$ ${v}:</span> <span>${q}x</span></div>
+            `).join('')}
+            ${Object.entries(caixa.contagem_abertura.moedas || {}).filter(([_, q]) => q > 0).map(([v, q]) => `
+              <div class="item"><span>Moedas R$ ${parseFloat(v).toFixed(2)}:</span> <span>${q}x</span></div>
+            `).join('')}
+          ` : `
+            <div style="white-space: pre-wrap;">${caixa.observacoes}</div>
+          `}
+        </div>
+        ` : ''}
         
         <div class="divider"></div>
         
@@ -630,11 +668,23 @@ export default function Caixa() {
     janela.print();
   };
 
-  const handleAbrirCaixa = () => {
+  const handleAbrirCaixa = async () => {
     if (valorInicial < 0) {
       toast.error("Valor inicial não pode ser negativo");
       return;
     }
+    
+    // Confirmação para abertura com valor ZERO
+    if (valorInicial === 0) {
+      const resposta = await confirm({
+        title: "Confirmar Abertura",
+        description: "Deseja abrir o caixa com valor ZERO (sem fundo de troco)?",
+        confirmText: "Sim, abrir",
+        cancelText: "Cancelar"
+      });
+      if (!resposta) return;
+    }
+
     abrirCaixaMutation.mutate(valorInicial);
   };
 
@@ -723,8 +773,8 @@ export default function Caixa() {
                 onClick={() => setDialogSangria(true)}
                 variant="outline"
                 className="text-red-600 border-red-300"
-                disabled={!podeGerenciarCaixa}
-                title={!podeGerenciarCaixa ? "Sem permissão: Gerenciar Caixa" : "Realizar sangria"}
+                disabled={!podeSangriaSuprimento}
+                title={!podeSangriaSuprimento ? "Sem permissão: Sangria/Suprimento" : "Realizar sangria"}
               >
                 <ArrowDown className="w-4 h-4 mr-2" />
                 Sangria
@@ -733,8 +783,8 @@ export default function Caixa() {
                 onClick={() => setDialogSuprimento(true)}
                 variant="outline"
                 className="text-green-600 border-green-300"
-                disabled={!podeGerenciarCaixa}
-                title={!podeGerenciarCaixa ? "Sem permissão: Gerenciar Caixa" : "Realizar suprimento"}
+                disabled={!podeSangriaSuprimento}
+                title={!podeSangriaSuprimento ? "Sem permissão: Sangria/Suprimento" : "Realizar suprimento"}
               >
                 <ArrowUp className="w-4 h-4 mr-2" />
                 Suprimento
@@ -1068,32 +1118,47 @@ export default function Caixa() {
 
       {/* Dialog Abertura */}
       <Dialog open={dialogAbertura} onOpenChange={setDialogAbertura}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Abrir Caixa</DialogTitle>
+            <DialogDescription>
+              A contagem de cédulas e moedas é obrigatória para iniciar o caixa.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label>Valor Inicial do Caixa</Label>
-              <InputMoeda
-                value={valorInicial}
-                onChange={(valor) => setValorInicial(valor)}
-                placeholder="R$ 0,00"
-              />
-            </div>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <p className="text-sm text-blue-800">
-                <strong>Dica:</strong> Informe o valor em dinheiro que você está colocando no caixa para começar o dia.
+                Informe a quantidade de cada nota e moeda presente na gaveta para o fundo de troco.
               </p>
+            </div>
+            
+            <ContagemNotas
+              value={contagemAbertura}
+              onChange={(newValue) => {
+                setContagemAbertura(newValue);
+                setValorInicial(newValue.total);
+              }}
+            />
+
+            <div className="pt-4 border-t">
+              <div className="flex items-center justify-between">
+                <Label className="text-lg font-bold">Valor Inicial Total:</Label>
+                <div className="text-2xl font-bold text-green-700">
+                  R$ {valorInicial.toFixed(2)}
+                </div>
+              </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogAbertura(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleAbrirCaixa} className="bg-green-600 hover:bg-green-700">
+            <Button 
+              onClick={handleAbrirCaixa} 
+              className="bg-green-600 hover:bg-green-700"
+            >
               <Unlock className="w-4 h-4 mr-2" />
-              Abrir Caixa
+              Confirmar e Abrir
             </Button>
           </DialogFooter>
         </DialogContent>
