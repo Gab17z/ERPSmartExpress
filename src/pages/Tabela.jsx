@@ -353,7 +353,7 @@ export default function Tabela() {
   // Nível 1 = Admin/Diretor, Nível 2 = Gerente → podem editar
   // Nível 3, 4, 5 = operacional → só visualizam
   const podeEditar = useMemo(() => {
-    const nivel = parseInt(user?.usuarioSistema?.nivel_hierarquia) || 99;
+    const nivel = parseInt(user?.cargo?.nivel_hierarquia ?? user?.usuarioSistema?.cargo?.nivel_hierarquia) || 99;
     return nivel <= 2;
   }, [user]);
   const [modoEdicao, setModoEdicao] = useState(false);
