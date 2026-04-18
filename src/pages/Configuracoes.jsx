@@ -33,6 +33,7 @@ import {
   Database,
   HardDrive,
   Eye,
+  EyeOff,
   Zap,
   QrCode,
   CloudOff,
@@ -314,6 +315,10 @@ export default function Configuracoes() {
   const { user } = useAuth();
   const confirm = useConfirm();
   const queryClient = useQueryClient();
+
+  // Controle de visibilidade dos campos de senha
+  const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [mostrarSenhaAuth, setMostrarSenhaAuth] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [salvando, setSalvando] = useState(false); // Used for main save button
   // Initialize state with the default configuration object
@@ -4282,6 +4287,8 @@ export default function Configuracoes() {
         if (!open) {
           setEditingUsuario(null);
           setUsuarioData({ nome: "", email: "", telefone: "", cargo_id: "", senha: "", codigo_barras_autorizacao: "", senha_autorizacao: "", ativo: true });
+          setMostrarSenha(false);
+          setMostrarSenhaAuth(false);
         }
       }}>
         <DialogContent className="max-w-md">
@@ -4334,12 +4341,24 @@ export default function Configuracoes() {
 
             <div>
               <Label>{editingUsuario ? "Nova Senha (deixe em branco para manter)" : "Senha *"}</Label>
-              <Input
-                type="password"
-                value={usuarioData.senha || ""}
-                onChange={(e) => setUsuarioData(prev => ({ ...prev, senha: e.target.value }))}
-                placeholder={editingUsuario ? "••••••••" : "Digite uma senha"}
-              />
+              <div className="relative">
+                <Input
+                  type={mostrarSenha ? "text" : "password"}
+                  value={usuarioData.senha || ""}
+                  onChange={(e) => setUsuarioData(prev => ({ ...prev, senha: e.target.value }))}
+                  placeholder={editingUsuario ? "••••••••" : "Digite uma senha"}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
+                  onClick={() => setMostrarSenha(v => !v)}
+                  tabIndex={-1}
+                  title={mostrarSenha ? "Ocultar senha" : "Ver senha"}
+                >
+                  {mostrarSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               {!editingUsuario && (
                 <p className="text-xs text-slate-500 mt-1">
                   A senha será usada para login no sistema.
@@ -4398,12 +4417,24 @@ export default function Configuracoes() {
 
                   <div>
                     <Label>Senha de Autorização (Digitável)</Label>
-                    <Input
-                      type="password"
-                      value={usuarioData.senha_autorizacao || ""}
-                      onChange={(e) => setUsuarioData(prev => ({ ...prev, senha_autorizacao: e.target.value }))}
-                      placeholder="Senha para autorizar no PDV..."
-                    />
+                    <div className="relative">
+                      <Input
+                        type={mostrarSenhaAuth ? "text" : "password"}
+                        value={usuarioData.senha_autorizacao || ""}
+                        onChange={(e) => setUsuarioData(prev => ({ ...prev, senha_autorizacao: e.target.value }))}
+                        placeholder="Senha para autorizar no PDV..."
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
+                        onClick={() => setMostrarSenhaAuth(v => !v)}
+                        tabIndex={-1}
+                        title={mostrarSenhaAuth ? "Ocultar senha" : "Ver senha"}
+                      >
+                        {mostrarSenhaAuth ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                     <p className="text-xs text-slate-500 mt-1">
                       Usada para digitar em confirmações de venda no PDV.
                     </p>
