@@ -899,7 +899,7 @@ export default function Tabela() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Modelo</TableHead>
-                            <TableHead className="text-right">Preço de Custo</TableHead>
+                            <TableHead className="text-right">Valor</TableHead>
                             <TableHead>Variação</TableHead>
                             <TableHead>Obs.</TableHead>
                             <TableHead className="text-center">Situação</TableHead>
