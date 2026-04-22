@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "lucide-react";
-import { format, subDays, startOfMonth, startOfYear } from "date-fns";
+import { format, subDays, startOfMonth, startOfYear, subWeeks, startOfWeek, endOfWeek } from "date-fns";
 
 export default function DateRangeFilter({ onFilterChange }) {
   const hoje = new Date();
@@ -21,10 +21,11 @@ export default function DateRangeFilter({ onFilterChange }) {
 
   const atalhos = [
     { label: "Hoje", inicio: hoje, fim: hoje },
-    { label: "Últimos 7 dias", inicio: subDays(hoje, 6), fim: hoje },
-    { label: "Últimos 30 dias", inicio: subDays(hoje, 29), fim: hoje },
+    { label: "Ontem", inicio: subDays(hoje, 1), fim: subDays(hoje, 1) },
+    { label: "Esta Semana", inicio: startOfWeek(hoje, { weekStartsOn: 1 }), fim: endOfWeek(hoje, { weekStartsOn: 1 }) },
+    { label: "Semana Passada", inicio: startOfWeek(subWeeks(hoje, 1), { weekStartsOn: 1 }), fim: endOfWeek(subWeeks(hoje, 1), { weekStartsOn: 1 }) },
     { label: "Este Mês", inicio: startOfMonth(hoje), fim: hoje },
-    { label: "Este Ano", inicio: startOfYear(hoje), fim: hoje },
+    { label: "Últimos 30 dias", inicio: subDays(hoje, 29), fim: hoje },
   ];
 
   return (

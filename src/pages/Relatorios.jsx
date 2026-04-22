@@ -42,6 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import DateRangeFilter from "@/components/DateRangeFilter";
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -135,10 +136,9 @@ export default function Relatorios() {
   // Filtrar dados pelo período
   const vendasPeriodo = vendas.filter(v => {
     const dataVenda = new Date(v.created_date);
-    // Adjust dataFim to include the entire day
-    const finalDate = new Date(periodoFim);
-    finalDate.setHours(23, 59, 59, 999);
-    return dataVenda >= new Date(periodoInicio) && dataVenda <= finalDate && v.status === 'finalizada';
+    const startDate = new Date(`${periodoInicio}T00:00:00`);
+    const finalDate = new Date(`${periodoFim}T23:59:59.999`);
+    return dataVenda >= startDate && dataVenda <= finalDate && v.status === 'finalizada';
   });
 
   // Calcular métricas
@@ -505,9 +505,9 @@ export default function Relatorios() {
   // Filtrar e ordenar logs de desconto
   const logsDescontoFiltrados = logsDesconto.filter(log => {
     const dataLog = new Date(log.data_hora || log.created_date);
-    const finalDate = new Date(periodoFim);
-    finalDate.setHours(23, 59, 59, 999);
-    return dataLog >= new Date(periodoInicio) && dataLog <= finalDate;
+    const startDate = new Date(`${periodoInicio}T00:00:00`);
+    const finalDate = new Date(`${periodoFim}T23:59:59.999`);
+    return dataLog >= startDate && dataLog <= finalDate;
   });
 
   const logsDescontoOrdenados = [...logsDescontoFiltrados].sort((a, b) => {
@@ -604,38 +604,12 @@ export default function Relatorios() {
       </div>
 
       {/* Filtros */}
-      <Card className="border-none shadow-lg">
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="periodoInicio">Período Inicial</Label>
-              <Input
-                id="periodoInicio"
-                type="date"
-                value={periodoInicio}
-                onChange={(e) => setPeriodoInicio(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="periodoFim">Período Final</Label>
-              <Input
-                id="periodoFim"
-                type="date"
-                value={periodoFim}
-                onChange={(e) => setPeriodoFim(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            {/* The "Aplicar Filtros" button doesn't actually trigger a re-filter with the current setup, 
-                as the `vendasPeriodo` and derived data are re-calculated on every `periodoInicio`/`periodoFim` change.
-                If filtering was expensive, it would require an explicit button click to set a state that triggers the filter. */}
-            <div className="flex items-end">
-              <Button className="w-full" onClick={() => toast.info("Filtros aplicados automaticamente.")}>Aplicar Filtros</Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <DateRangeFilter 
+        onFilterChange={(f) => {
+          setPeriodoInicio(f.dataInicio);
+          setPeriodoFim(f.dataFim);
+        }} 
+      />
 
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

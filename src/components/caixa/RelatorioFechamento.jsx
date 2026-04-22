@@ -25,7 +25,7 @@ const MOEDAS_LABELS = [
   { chave: "1", label: "R$ 1,00", valor: 1 },
   { chave: "0.5", label: "R$ 0,50", valor: 0.5 },
   { chave: "0.25", label: "R$ 0,25", valor: 0.25 },
-  { chave: "0.10", label: "R$ 0,10", valor: 0.1 },
+  { chave: "0.1", label: "R$ 0,10", valor: 0.1 },
   { chave: "0.05", label: "R$ 0,05", valor: 0.05 },
 ];
 

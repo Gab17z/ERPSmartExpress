@@ -303,6 +303,8 @@ export default function OrdensServico() {
         status: "recebido",
         data_entrada: new Date().toISOString(),
         atendente_abertura: user?.nome,
+        atendente_abertura_id: user?.id,
+        vendedor_id: user?.id,
         checklist_entrada: fullChecklistEntrada,
         historico: [{
           data: new Date().toISOString(),

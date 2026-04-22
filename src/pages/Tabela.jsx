@@ -415,6 +415,7 @@ export default function Tabela() {
       queryClient.invalidateQueries({ queryKey: ["configuracao"] });
       toast.success("Tabela salva!");
       setModoEdicao(false);
+      setTimeout(() => window.location.reload(), 1000);
     },
     onError: () => toast.error("Erro ao salvar."),
   });

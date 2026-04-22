@@ -695,6 +695,7 @@ export default function Configuracoes() {
       setDialogUsuario(false);
       setEditingUsuario(null);
       setUsuarioData({ nome: "", email: "", telefone: "", cargo_id: "", senha: "", codigo_barras_autorizacao: "", senha_autorizacao: "", ativo: true });
+      setTimeout(() => window.location.reload(), 1000);
     },
     onError: (error) => {
       console.error("Erro ao criar usuário:", error);
@@ -750,6 +751,7 @@ export default function Configuracoes() {
       setDialogUsuario(false);
       setEditingUsuario(null);
       setUsuarioData({ nome: "", email: "", telefone: "", cargo_id: "", senha: "", codigo_barras_autorizacao: "", senha_autorizacao: "", ativo: true });
+      setTimeout(() => window.location.reload(), 1000);
     },
     onError: (error) => {
       console.error("Erro ao atualizar usuário:", error);
@@ -809,6 +811,7 @@ export default function Configuracoes() {
       toast.success("Cargo criado!");
       setDialogCargo(false);
       setCargoData({ nome: "", nivel_hierarquia: 5, descricao: "", permissoes: { ...permissoesPadrao } });
+      setTimeout(() => window.location.reload(), 1000);
     },
   });
 
@@ -844,6 +847,7 @@ export default function Configuracoes() {
       setDialogCargo(false);
       setEditingCargo(null);
       setCargoData({ nome: "", nivel_hierarquia: 5, descricao: "", permissoes: { ...permissoesPadrao } });
+      setTimeout(() => window.location.reload(), 1000);
     },
   });
 
@@ -964,6 +968,9 @@ export default function Configuracoes() {
         description: "Todas as alterações foram aplicadas ao sistema.",
         duration: 3000,
       });
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (error) {
       console.error("Erro ao salvar:", error);
       toast.error("Erro ao salvar configurações", {

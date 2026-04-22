@@ -116,6 +116,7 @@ export default function MeuPerfil() {
       });
 
       toast.success("Perfil atualizado com sucesso!");
+      setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
       console.error("Erro ao salvar perfil:", error);
       toast.error(error.message || "Erro ao salvar perfil");
@@ -152,6 +153,7 @@ export default function MeuPerfil() {
   const handleSavePreferences = () => {
     localStorage.setItem('user_preferences', JSON.stringify(preferencias));
     toast.success("Preferencias salvas com sucesso!");
+    setTimeout(() => window.location.reload(), 1000);
   };
 
   const handleAvatarUpload = async (e) => {
@@ -163,6 +165,7 @@ export default function MeuPerfil() {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       setFormData({ ...formData, avatar_url: file_url });
       toast.success("Avatar enviado!");
+      setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
       console.error("Erro ao enviar avatar:", error);
       toast.error("Erro ao enviar avatar");
