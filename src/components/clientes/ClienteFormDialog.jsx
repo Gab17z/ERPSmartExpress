@@ -10,8 +10,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { capitalizarNome, formatarTelefoneDigitando, formatarCPFCNPJDigitando, formatarCEPDigitando } from "@/components/FormatUtils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useLoja } from "@/contexts/LojaContext";
 
 export default function ClienteFormDialog({ open, onOpenChange, clienteInicial = null }) {
+  const { user } = useAuth();
+  const { lojaFiltroId } = useLoja();
   const queryClient = useQueryClient();
   const [buscandoCep, setBuscandoCep] = useState(false);
   const estadoInicial = {
@@ -46,7 +50,25 @@ export default function ClienteFormDialog({ open, onOpenChange, clienteInicial =
   }, [clienteInicial, open]);
 
   const mutation = useMutation({
-    mutationFn: (data) => {
+    mutationFn: async (data) => {
+      // CRÍTICO: Validar CPF duplicado (se fornecido)
+      if (data.cpf_cnpj && !clienteInicial?.id) {
+        const cpfLimpo = data.cpf_cnpj.replace(/\D/g, '');
+        
+        // Buscar apenas clientes com este CPF (mais eficiente que list global)
+        const existentes = await base44.entities.Cliente.filter({ 
+          cpf_cnpj: data.cpf_cnpj 
+        });
+
+        const clienteExistente = existentes.find(c => 
+          c.cpf_cnpj?.replace(/\D/g, '') === cpfLimpo
+        );
+
+        if (clienteExistente) {
+          throw new Error(`CPF/CNPJ já cadastrado para: ${clienteExistente.nome_completo}`);
+        }
+      }
+
       if (clienteInicial?.id) {
         return base44.entities.Cliente.update(clienteInicial.id, data);
       }
@@ -57,6 +79,10 @@ export default function ClienteFormDialog({ open, onOpenChange, clienteInicial =
       toast.success(clienteInicial ? "Cliente atualizado!" : "Cliente cadastrado!");
       onOpenChange(false);
     },
+    onError: (error) => {
+      console.error("Erro ao salvar cliente:", error);
+      toast.error(error.message || "Erro ao salvar cliente. Verifique os dados.");
+    }
   });
 
   const buscarCEP = async (cep) => {
@@ -98,15 +124,21 @@ export default function ClienteFormDialog({ open, onOpenChange, clienteInicial =
       return;
     }
 
-    // Limpar dados antes de enviar - converter strings vazias em null para campos de data
+    // CRÍTICO: Enviar APENAS colunas que existem na tabela 'cliente'
+    // Evita erro 400 por colunas inexistentes (ex: cadastrado_por_id/nome)
     const dadosLimpos = {
-      ...formData,
-      ativo: formData.ativo !== false, // Garante que seja boolean true por padrão
-      data_nascimento: formData.data_nascimento || null,
+      nome_completo: formData.nome_completo,
+      tipo_pessoa: formData.tipo_pessoa || 'fisica',
       cpf_cnpj: formData.cpf_cnpj || null,
+      data_nascimento: formData.data_nascimento || null,
+      telefone1: formData.telefone1,
       telefone2: formData.telefone2 || null,
       email: formData.email || null,
+      endereco: formData.endereco || {},
+      fonte: formData.fonte || 'loja_fisica',
       observacoes: formData.observacoes || null,
+      ativo: formData.ativo !== false,
+      loja_id: lojaFiltroId || user?.loja_id || null,
     };
 
     mutation.mutate(dadosLimpos);
@@ -263,7 +295,20 @@ export default function ClienteFormDialog({ open, onOpenChange, clienteInicial =
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" className="bg-blue-600">{clienteInicial ? "Atualizar" : "Cadastrar"}</Button>
+            <Button 
+              type="submit" 
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={mutation.isPending}
+            >
+              {mutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                clienteInicial ? "Atualizar" : "Cadastrar"
+              )}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

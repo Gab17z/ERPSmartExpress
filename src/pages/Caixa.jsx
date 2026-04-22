@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirm } from "@/contexts/ConfirmContext";
+import { useLoja } from "@/contexts/LojaContext";
 import {
   Dialog,
   DialogContent,
@@ -75,6 +76,7 @@ export default function Caixa() {
 
   const queryClient = useQueryClient();
   const { user, hasPermission } = useAuth();
+  const { lojaFiltroId } = useLoja();
   const confirm = useConfirm();
 
   // Verificar se usuário pode gerenciar caixa (sangria/suprimento)
@@ -82,12 +84,12 @@ export default function Caixa() {
   const podeSangriaSuprimento = podeGerenciarCaixa || hasPermission('fazer_sangria_suprimento');
 
   const { data: caixas = [], isLoading } = useQuery({
-    queryKey: ['caixas'],
+    queryKey: ['caixas', lojaFiltroId],
     queryFn: () => base44.entities.Caixa.list('-created_date'),
   });
 
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas'],
+    queryKey: ['vendas', lojaFiltroId],
     queryFn: () => base44.entities.Venda.list('-created_date'),
   });
 
@@ -177,7 +179,8 @@ export default function Caixa() {
         usuario_abertura: user?.nome || "Usuário",
         data_abertura: new Date().toISOString(),
         valor_inicial: valorInicial,
-        observacoes: obsAbertura, 
+        observacoes: obsAbertura,
+        loja_id: lojaFiltroId || null,
         status: 'aberto'
       });
     },

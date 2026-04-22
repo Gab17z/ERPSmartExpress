@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLoja } from "@/contexts/LojaContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,24 +42,34 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
     individuais: {}
   });
 
+  const { lojaFiltroId } = useLoja();
+
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list('-data_venda'),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-data_venda' })
+      : base44.entities.Venda.list('-data_venda'),
   });
 
   const { data: os = [] } = useQuery({
-    queryKey: ['os'],
-    queryFn: () => base44.entities.OrdemServico.list('-created_date'),
+    queryKey: ['os', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.OrdemServico.list('-created_date'),
   });
 
   const { data: clientes = [] } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: () => base44.entities.Cliente.list('-created_date'),
+    queryKey: ['clientes', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.Cliente.list('-created_date'),
   });
 
   const { data: usuariosSistema = [] } = useQuery({
-    queryKey: ['usuarios-sistema'],
-    queryFn: () => base44.entities.UsuarioSistema.list(),
+    queryKey: ['usuarios-sistema', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId })
+      : base44.entities.UsuarioSistema.list(),
   });
 
   const { data: devolucoes = [] } = useQuery({
@@ -69,18 +80,24 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
   });
 
   const { data: categorias = [] } = useQuery({
-    queryKey: ['categorias'],
-    queryFn: () => base44.entities.Categoria.list('nome'),
+    queryKey: ['categorias', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Categoria.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
+      : base44.entities.Categoria.list('nome'),
   });
 
   const { data: marcas = [] } = useQuery({
-    queryKey: ['marcas'],
-    queryFn: () => base44.entities.Marca.list('nome'),
+    queryKey: ['marcas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Marca.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
+      : base44.entities.Marca.list('nome'),
   });
 
   const { data: produtos = [] } = useQuery({
-    queryKey: ['produtos'],
-    queryFn: () => base44.entities.Produto.list('nome'),
+    queryKey: ['produtos', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Produto.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
+      : base44.entities.Produto.list('nome'),
   });
 
   const categoriasMap = React.useMemo(() => {

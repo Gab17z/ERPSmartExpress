@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLoja } from "@/contexts/LojaContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -78,6 +79,7 @@ export default function Clientes() {
 
   const { user, hasPermission } = useAuth();
   const podeEditarClientes = hasPermission('editar_clientes') || hasPermission('gerenciar_clientes');
+  const { lojaFiltroId } = useLoja();
   const [configuracoes, setConfiguracoes] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLockRef = useRef(false);
@@ -118,22 +120,29 @@ export default function Clientes() {
   }, []);
 
   const { data: clientes = [], isLoading } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: () => base44.entities.Cliente.list('-created_date'),
+    queryKey: ['clientes', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.Cliente.list('-created_date'),
   });
 
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list('-created_date'),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.Venda.list('-created_date'),
   });
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      // CRÍTICO: Fresh fetch para validar CPF - reduz race condition
+      // CRÍTICO: Fresh fetch para validar CPF - OTIMIZADO para usar filter
       if (data.cpf_cnpj) {
         const cpfLimpo = data.cpf_cnpj.replace(/\D/g, '');
-        const clientesAtuais = await base44.entities.Cliente.list();
-        const clienteExistente = clientesAtuais.find(c =>
+        const existentes = await base44.entities.Cliente.filter({ 
+          cpf_cnpj: data.cpf_cnpj 
+        });
+
+        const clienteExistente = existentes.find(c =>
           c.cpf_cnpj?.replace(/\D/g, '') === cpfLimpo
         );
 
@@ -142,7 +151,12 @@ export default function Clientes() {
         }
       }
 
-      return base44.entities.Cliente.create(data);
+      // CRÍTICO: Garantir que loja_id seja enviado (fallback para loja do usuário se filtro for global)
+      const dataWithLoja = { 
+        ...data, 
+        loja_id: lojaFiltroId || user?.loja_id || null 
+      };
+      return base44.entities.Cliente.create(dataWithLoja);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
@@ -165,8 +179,11 @@ export default function Clientes() {
       // CRÍTICO: Fresh fetch para validar CPF duplicado (exceto o próprio cliente)
       if (data.cpf_cnpj) {
         const cpfLimpo = data.cpf_cnpj.replace(/\D/g, '');
-        const clientesAtuais = await base44.entities.Cliente.list();
-        const clienteExistente = clientesAtuais.find(c =>
+        const existentes = await base44.entities.Cliente.filter({ 
+          cpf_cnpj: data.cpf_cnpj 
+        });
+
+        const clienteExistente = existentes.find(c =>
           c.cpf_cnpj?.replace(/\D/g, '') === cpfLimpo && c.id !== id
         );
 
@@ -195,10 +212,10 @@ export default function Clientes() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
-      // CRÍTICO: Verificar se cliente tem vendas/OS antes de deletar
+      // CRÍTICO: Verificar se cliente tem vendas/OS antes de deletar (usando filter ao invés de list global)
       const [vendasCliente, osCliente] = await Promise.all([
-        base44.entities.Venda.list().then(v => v.filter(venda => venda.cliente_id === id)),
-        base44.entities.OrdemServico.list().then(os => os.filter(ordem => ordem.cliente_id === id))
+        base44.entities.Venda.filter({ cliente_id: id }),
+        base44.entities.OrdemServico.filter({ cliente_id: id })
       ]);
 
       if (vendasCliente.length > 0) {
@@ -311,9 +328,7 @@ export default function Clientes() {
     } else {
       createMutation.mutate({ 
         ...dadosFormatados, 
-        ativo: true,
-        cadastrado_por_id: user?.id,
-        cadastrado_por_nome: user?.nome
+        ativo: true
       });
     }
   };

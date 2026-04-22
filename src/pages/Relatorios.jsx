@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLoja } from "@/contexts/LojaContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -70,6 +71,7 @@ export default function Relatorios() {
   const [sortDescontos, setSortDescontos] = useState({ key: 'data_hora', direction: 'desc' });
 
   const { user } = useAuth();
+  const { lojaFiltroId } = useLoja();
 
   // Verificar se é admin pelo cargo
   const isAdmin = user?.cargo?.nome?.toLowerCase().includes('admin') ||
@@ -77,23 +79,31 @@ export default function Relatorios() {
     user?.permissoes?.relatorios === true;
 
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list('-created_date'),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId 
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.Venda.list('-created_date'),
   });
 
   const { data: produtos = [] } = useQuery({
-    queryKey: ['produtos'],
-    queryFn: () => base44.entities.Produto.list(),
+    queryKey: ['produtos', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Produto.filter({ loja_id: lojaFiltroId })
+      : base44.entities.Produto.list(),
   });
 
   const { data: ordensServico = [] } = useQuery({
-    queryKey: ['ordens-servico'],
-    queryFn: () => base44.entities.OrdemServico.list(),
+    queryKey: ['ordens-servico', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId })
+      : base44.entities.OrdemServico.list(),
   });
 
   const { data: clientes = [] } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: () => base44.entities.Cliente.list(),
+    queryKey: ['clientes', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId })
+      : base44.entities.Cliente.list(),
   });
 
   const { data: logsDesconto = [] } = useQuery({
