@@ -52,13 +52,13 @@ export default function Caixa() {
   // Contagem de notas/moedas para abertura e fechamento
   const [contagemAbertura, setContagemAbertura] = useState({
     notas: { "200": 0, "100": 0, "50": 0, "20": 0, "10": 0, "5": 0, "2": 0 },
-    moedas: { "1": 0, "0.5": 0, "0.25": 0, "0.10": 0, "0.05": 0 },
+    moedas: { "1": 0, "0.5": 0, "0.25": 0, "0.1": 0, "0.05": 0 },
     total: 0
   });
 
   const [contagemNotas, setContagemNotas] = useState({
     notas: { "200": 0, "100": 0, "50": 0, "20": 0, "10": 0, "5": 0, "2": 0 },
-    moedas: { "1": 0, "0.5": 0, "0.25": 0, "0.10": 0, "0.05": 0 },
+    moedas: { "1": 0, "0.5": 0, "0.25": 0, "0.1": 0, "0.05": 0 },
     total: 0
   });
 
@@ -188,7 +188,7 @@ export default function Caixa() {
       setValorInicial(0);
       setContagemAbertura({
         notas: { "200": 0, "100": 0, "50": 0, "20": 0, "10": 0, "5": 0, "2": 0 },
-        moedas: { "1": 0, "0.5": 0, "0.25": 0, "0.10": 0, "0.05": 0 },
+        moedas: { "1": 0, "0.5": 0, "0.25": 0, "0.1": 0, "0.05": 0 },
         total: 0
       });
 
@@ -428,7 +428,7 @@ export default function Caixa() {
       });
       setContagemNotas({
         notas: { "200": 0, "100": 0, "50": 0, "20": 0, "10": 0, "5": 0, "2": 0 },
-        moedas: { "1": 0, "0.5": 0, "0.25": 0, "0.10": 0, "0.05": 0 },
+        moedas: { "1": 0, "0.5": 0, "0.25": 0, "0.1": 0, "0.05": 0 },
         total: 0
       });
 

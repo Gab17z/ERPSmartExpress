@@ -79,6 +79,8 @@ export default function Produtos() {
   const [uploading, setUploading] = useState(false);
   const [ordenacao, setOrdenacao] = useState({ campo: null, direcao: 'asc' });
   const [tipoFiltro, setTipoFiltro] = useState("todos");
+  const [filtroCategoria, setFiltroCategoria] = useState("todos");
+  const [filtroMarca, setFiltroMarca] = useState("todos");
   const [paginaAtual, setPaginaAtual] = useState(1);
   const ITENS_POR_PAGINA = 50;
   const [configuracoes, setConfiguracoes] = useState(null);
@@ -124,6 +126,8 @@ export default function Produtos() {
     imagem_url: "",
     codigo_barras: "",
     ativo: true,
+    is_aparelho: false,
+    condicao: "novo",
   });
 
   const queryClient = useQueryClient();
@@ -296,6 +300,8 @@ export default function Produtos() {
       imagem_url: "",
       codigo_barras: "",
       ativo: true,
+      is_aparelho: false,
+      condicao: "novo",
     });
     setEditingProduto(null);
     setCamposInvalidos([]);
@@ -307,7 +313,9 @@ export default function Produtos() {
       setFormData({
         ...produto,
         preco_custo: produto.preco_custo || "",
-        preco_venda: produto.preco_venda || ""
+        preco_venda: produto.preco_venda || "",
+        is_aparelho: produto.is_aparelho || false,
+        condicao: produto.condicao || "novo"
       });
     } else {
       // Gerar próximo SKU numérico automaticamente
@@ -922,18 +930,62 @@ export default function Produtos() {
     return produtos
       .filter((p) => p.ativo !== false)
       .filter((p) => {
-        if (tipoFiltro === "pecas") {
-          return p.categoria === 'peças_de_reposição';
-        } else if (tipoFiltro === "produtos") {
-          return p.categoria !== 'peças_de_reposição';
+        // PRIORIDADE 1: Se selecionou categoria específica no menu, ela manda
+        if (filtroCategoria !== "todos") {
+          const selectedCat = categorias.find(c => c.id.toString() === filtroCategoria);
+          const catId = (p.categoria_id || "").toString();
+          const pCatSlug = p.categoria?.toLowerCase().replace(/\s+/g, '_') || "";
+          const selectedCatSlug = selectedCat ? selectedCat.nome.toLowerCase().replace(/\s+/g, '_') : filtroCategoria;
+          
+          if (catId !== filtroCategoria && pCatSlug !== selectedCatSlug && p.categoria !== filtroCategoria) {
+            return false;
+          }
+        } else {
+          // PRIORIDADE 2: Se NÃO selecionou categoria, respeita os botões rápidos (Produtos/Peças)
+          if (tipoFiltro === "pecas") {
+            if (p.categoria !== 'peças_de_reposição') return false;
+          } else if (tipoFiltro === "produtos") {
+            if (p.categoria === 'peças_de_reposição') return false;
+          }
         }
+
+        // PRIORIDADE 3: Filtro por Marca (Select)
+        if (filtroMarca !== "todos") {
+          const pMarca = (p.marca_nome || "").toLowerCase().trim();
+          const fMarca = filtroMarca.toLowerCase().trim();
+          if (pMarca !== fMarca) return false;
+        }
+
         return true;
       })
-      .filter((p) =>
-        p.nome?.toLowerCase().includes(searchTermLower) ||
-        p.sku?.toLowerCase().includes(searchTermLower) ||
-        p.marca_nome?.toLowerCase().includes(searchTermLower)
-      )
+      .filter((p) => {
+        if (!searchTermLower) return true;
+
+        // Se começar com '%', faz a busca tipo "CONTÉM" (em qualquer lugar da string)
+        if (searchTermLower.startsWith('%')) {
+          const termo = searchTermLower.substring(1).trim();
+          if (!termo) return true;
+          
+          const searchFields = [
+            p.nome,
+            p.descricao,
+            p.sku,
+            p.marca_nome,
+            p.categoria?.replace(/_/g, ' ')
+          ].join(' ').toLowerCase();
+
+          // Busca por Múltiplas Palavras (E) - Deve conter TODAS as palavras
+          const words = termo.split(/\s+/).filter(Boolean);
+          return words.every(word => searchFields.includes(word));
+        }
+
+        // Se NÃO tiver '%', faz a busca tipo "COMEÇA COM" (priorizando Nome e SKU)
+        const termoNormal = searchTermLower.trim();
+        const nomeLower = (p.nome || '').toLowerCase();
+        const skuLower = (p.sku || '').toLowerCase();
+        
+        return nomeLower.startsWith(termoNormal) || skuLower.startsWith(termoNormal);
+      })
       .sort((a, b) => {
         if (!ordenacao.campo) return 0;
 
@@ -962,7 +1014,7 @@ export default function Produtos() {
         if (valorA > valorB) return ordenacao.direcao === 'asc' ? 1 : -1;
         return 0;
       });
-  }, [produtos, tipoFiltro, searchTermLower, ordenacao]);
+  }, [produtos, tipoFiltro, filtroCategoria, filtroMarca, searchTermLower, ordenacao]);
 
   // Paginação
   const totalPaginas = Math.ceil(filteredProdutos.length / ITENS_POR_PAGINA);
@@ -974,7 +1026,7 @@ export default function Produtos() {
   // Reset paginação ao filtrar/buscar
   React.useEffect(() => {
     setPaginaAtual(1);
-  }, [searchTerm, tipoFiltro, ordenacao]);
+  }, [searchTerm, tipoFiltro, filtroCategoria, filtroMarca, ordenacao]);
 
   const produtosBaixoEstoque = useMemo(() => {
     return produtos.filter(p => p.estoque_atual <= p.estoque_minimo && p.ativo);
@@ -1215,31 +1267,80 @@ export default function Produtos() {
                 className="pl-10"
               />
             </div>
-            <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-              <Button
-                variant={tipoFiltro === "todos" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setTipoFiltro("todos")}
-                className={tipoFiltro === "todos" ? "bg-blue-600 hover:bg-blue-700" : ""}
-              >
-                Todos
-              </Button>
-              <Button
-                variant={tipoFiltro === "produtos" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setTipoFiltro("produtos")}
-                className={tipoFiltro === "produtos" ? "bg-blue-600 hover:bg-blue-700" : ""}
-              >
-                Produtos
-              </Button>
-              <Button
-                variant={tipoFiltro === "pecas" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setTipoFiltro("pecas")}
-                className={tipoFiltro === "pecas" ? "bg-blue-600 hover:bg-blue-700" : ""}
-              >
-                Pecas
-              </Button>
+            <div className="flex flex-wrap gap-2 items-center">
+              <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+                <Button
+                  variant={tipoFiltro === "todos" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setTipoFiltro("todos")}
+                  className={tipoFiltro === "todos" ? "bg-blue-600 hover:bg-blue-700" : ""}
+                >
+                  Todos
+                </Button>
+                <Button
+                  variant={tipoFiltro === "produtos" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setTipoFiltro("produtos")}
+                  className={tipoFiltro === "produtos" ? "bg-blue-600 hover:bg-blue-700" : ""}
+                >
+                  Produtos
+                </Button>
+                <Button
+                  variant={tipoFiltro === "pecas" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setTipoFiltro("pecas")}
+                  className={tipoFiltro === "pecas" ? "bg-blue-600 hover:bg-blue-700" : ""}
+                >
+                  Peças/Serv.
+                </Button>
+              </div>
+
+              <div className="flex gap-2">
+                <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
+                  <SelectTrigger className="w-[180px] h-9">
+                    <Filter className="w-3.5 h-3.5 mr-2 opacity-50" />
+                    <SelectValue placeholder="Categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todas Categorias</SelectItem>
+                    {categorias.map(cat => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={filtroMarca} onValueChange={setFiltroMarca}>
+                  <SelectTrigger className="w-[150px] h-9">
+                    <Package className="w-3.5 h-3.5 mr-2 opacity-50" />
+                    <SelectValue placeholder="Marca" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todas Marcas</SelectItem>
+                    {marcas.map(m => (
+                      <SelectItem key={m.id} value={m.nome}>
+                        {m.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {(filtroCategoria !== 'todos' || filtroMarca !== 'todos' || searchTerm) && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => {
+                      setSearchTerm("");
+                      setFiltroCategoria("todos");
+                      setFiltroMarca("todos");
+                    }}
+                    className="text-slate-500 text-xs h-9"
+                  >
+                    Limpar
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -1565,6 +1666,31 @@ export default function Produtos() {
                 <div>
                   <Label>Margem</Label>
                   <Input value={formData.margem_lucro?.toFixed(2) || 0} disabled className="bg-slate-100" />
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
+              <div className="flex items-center gap-2">
+                <Switch 
+                  checked={formData.is_aparelho} 
+                  onCheckedChange={(c) => handleChange('is_aparelho', c)} 
+                />
+                <Label>Produto é um Aparelho Celular?</Label>
+              </div>
+
+              {formData.is_aparelho && (
+                <div>
+                  <Label>Condição do Aparelho</Label>
+                  <Select value={formData.condicao} onValueChange={(v) => handleChange('condicao', v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a condição" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="novo">Novo (Lacrado)</SelectItem>
+                      <SelectItem value="seminovo">Seminovo</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
             </div>
