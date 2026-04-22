@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLoja } from "@/contexts/LojaContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -99,6 +100,7 @@ export default function OrdensServico() {
   const [selectedOS, setSelectedOS] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState("todas");
   const { user, hasPermission } = useAuth();
+  const { lojaFiltroId } = useLoja();
   const podeCriarOS      = hasPermission('gerenciar_os') || hasPermission('criar_os');
   const podeEditarOS     = hasPermission('gerenciar_os') || hasPermission('editar_os');
   const podeFinalizarOS  = hasPermission('gerenciar_os') || hasPermission('finalizar_os');
@@ -217,25 +219,39 @@ export default function OrdensServico() {
   }, []);
 
   const { data: ordensServico = [] } = useQuery({
-    queryKey: ['ordens-servico'],
-    queryFn: () => base44.entities.OrdemServico.list('-created_date'),
+    queryKey: ['ordens-servico', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.OrdemServico.list('-created_date'),
   });
 
   const { data: clientes = [] } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: () => base44.entities.Cliente.list('nome_completo'),
+    queryKey: ['clientes', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: 'nome_completo' })
+      : base44.entities.Cliente.list('nome_completo'),
   });
 
   const { data: produtos = [] } = useQuery({
-    queryKey: ['produtos'],
-    queryFn: () => base44.entities.Produto.list('nome'),
+    queryKey: ['produtos', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Produto.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
+      : base44.entities.Produto.list('nome'),
   });
 
 
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
+      if (!data.cliente_id) {
+        throw new Error("Selecione um cliente válido.");
+      }
+      
       const cliente = clientes.find(c => c.id === data.cliente_id);
+
+      if (checklistEntrada?.possui_senha && (!data.aparelho?.senha || data.aparelho.senha.trim() === '')) {
+        throw new Error("Você marcou que o aparelho POSSUI SENHA, mas deixou a senha em branco.");
+      }
 
       let proximoNumero = 1;
       try {
@@ -301,10 +317,9 @@ export default function OrdensServico() {
         cliente_cpf: cliente?.cpf_cnpj,
         cliente_endereco: cliente?.endereco,
         status: "recebido",
+        loja_id: lojaFiltroId || null,
         data_entrada: new Date().toISOString(),
         atendente_abertura: user?.nome,
-        atendente_abertura_id: user?.id,
-        vendedor_id: user?.id,
         checklist_entrada: fullChecklistEntrada,
         historico: [{
           data: new Date().toISOString(),
@@ -323,6 +338,10 @@ export default function OrdensServico() {
       setDialogImpressao(true);
       resetForm();
     },
+    onError: (error) => {
+      console.error("Erro ao criar OS:", error);
+      toast.error(`Falha ao abrir OS: ${error.message}`);
+    }
   });
 
   const updateStatusMutation = useMutation({

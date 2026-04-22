@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLoja } from "@/contexts/LojaContext";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import {
@@ -53,13 +54,16 @@ export default function Dashboard() {
 
   // Usar o novo sistema de autenticação
   const { user } = useAuth();
+  const { lojaFiltroId, lojaLabel } = useLoja();
   const isAdmin = user?.cargo?.nome?.toLowerCase() === 'administrador' ||
                   user?.permissoes?.administrador_sistema === true;
   const podVerCustos = user?.permissoes?.visualizar_custos === true || isAdmin;
 
   const { data: vendas = [], isLoading: loadingVendas } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list('-created_date'),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.Venda.list('-created_date'),
   });
 
   const { data: produtos = [], isLoading: loadingProdutos } = useQuery({
@@ -73,17 +77,19 @@ export default function Dashboard() {
   });
 
   const { data: ordensServico = [], isLoading: loadingOS } = useQuery({
-    queryKey: ['ordens-servico'],
-    queryFn: () => base44.entities.OrdemServico.list('-created_date'),
+    queryKey: ['ordens-servico', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.OrdemServico.list('-created_date'),
   });
 
   const { data: caixas = [] } = useQuery({
-    queryKey: ['caixas'],
+    queryKey: ['caixas', lojaFiltroId],
     queryFn: () => base44.entities.Caixa.list('-created_date', 10),
   });
 
   const { data: comissoes = [], isLoading: loadingComissoes } = useQuery({
-    queryKey: ['comissoes'],
+    queryKey: ['comissoes', lojaFiltroId],
     queryFn: async () => {
       try {
         return await base44.entities.Comissao.list();
@@ -95,7 +101,7 @@ export default function Dashboard() {
   });
 
   const { data: devolucoes = [] } = useQuery({
-    queryKey: ['devolucoes'],
+    queryKey: ['devolucoes', lojaFiltroId],
     queryFn: async () => {
       try {
         return await base44.entities.Devolucao.list();
@@ -311,7 +317,7 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-slate-500">Métricas e indicadores - {getNomePeriodo()}</p>
+          <p className="text-slate-500">Métricas e indicadores - {getNomePeriodo()} {lojaLabel ? `• ${lojaLabel}` : ''}</p>
         </div>
         <div className="flex items-center gap-3">
           <Calendar className="w-5 h-5 text-slate-400" />

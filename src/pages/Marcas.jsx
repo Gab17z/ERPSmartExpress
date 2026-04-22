@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLoja } from "@/contexts/LojaContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -21,6 +22,7 @@ import { useConfirm } from '@/contexts/ConfirmContext';
 
 export default function Marcas() {
   const { user } = useAuth();
+  const { lojaFiltroId } = useLoja();
   const confirm = useConfirm();
   const [dialogMarca, setDialogMarca] = useState(false);
   const [editingMarca, setEditingMarca] = useState(null);
@@ -51,12 +53,17 @@ export default function Marcas() {
   }, []);
 
   const { data: marcas = [], isLoading } = useQuery({
-    queryKey: ['marcas'],
-    queryFn: () => base44.entities.Marca.list('nome'),
+    queryKey: ['marcas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Marca.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
+      : base44.entities.Marca.list('nome'),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data) => base44.entities.Marca.create(data),
+    mutationFn: (data) => {
+      const dataWithLoja = { ...data, loja_id: lojaFiltroId || null };
+      return base44.entities.Marca.create(dataWithLoja);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['marcas'] });
       toast.success("Marca cadastrada com sucesso!");

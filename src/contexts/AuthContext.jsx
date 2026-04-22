@@ -47,7 +47,8 @@ export function AuthProvider({ children }) {
               ...usuarioAtual,
               usuarioSistema: usuarioSistema?.[0] || null,
               cargo: usuarioSistema?.[0]?.cargo || null,
-              permissoes: usuarioSistema?.[0]?.cargo?.permissoes || {}
+              permissoes: usuarioSistema?.[0]?.cargo?.permissoes || {},
+              loja_id: usuarioSistema?.[0]?.loja_id || null,
             });
 
             // Atualizar sessão com dados completos (sem senha)
@@ -110,7 +111,8 @@ export function AuthProvider({ children }) {
       ...usuarioSeguro,
       usuarioSistema: usuarioSistema?.[0] || null,
       cargo: usuarioSistema?.[0]?.cargo || null,
-      permissoes: usuarioSistema?.[0]?.cargo?.permissoes || {}
+      permissoes: usuarioSistema?.[0]?.cargo?.permissoes || {},
+      loja_id: usuarioSistema?.[0]?.loja_id || null,
     };
 
     // Salvar sessão no localStorage (sem senha)

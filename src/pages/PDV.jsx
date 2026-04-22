@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLoja } from "@/contexts/LojaContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
@@ -63,7 +64,8 @@ export default function PDV() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth(); // Usar autenticação customizada
+  const { user } = useAuth();
+  const { lojaFiltroId } = useLoja();
   const searchRef = useRef(null);
   const inputBuscaRef = useRef(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -112,28 +114,36 @@ export default function PDV() {
   const senhaVendedorRef = useRef(null);
 
   const { data: produtos = [], isLoading: loadingProdutos } = useQuery({
-    queryKey: ['produtos'],
+    queryKey: ['produtos', lojaFiltroId],
     queryFn: async () => {
-      const prods = await base44.entities.Produto.list('nome');
-      return prods;
+      if (lojaFiltroId) {
+        return await base44.entities.Produto.filter({ loja_id: lojaFiltroId }, { order: 'nome' });
+      }
+      return await base44.entities.Produto.list('nome');
     },
   });
 
   const { data: clientes = [], refetch: refetchClientes } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: () => base44.entities.Cliente.list('nome_completo'),
+    queryKey: ['clientes', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: 'nome_completo' })
+      : base44.entities.Cliente.list('nome_completo'),
     staleTime: 0, // Sempre considera os dados desatualizados para buscar frescos
   });
 
   const { data: caixas = [] } = useQuery({
-    queryKey: ['caixas'],
-    queryFn: () => base44.entities.Caixa.list('-created_date', 1),
+    queryKey: ['caixas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Caixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.Caixa.list('-created_date', 1),
   });
 
   // Carregar usuários do sistema para autenticação de vendedor
   const { data: usuariosSistema = [] } = useQuery({
-    queryKey: ['usuarios_sistema'],
-    queryFn: () => base44.entities.UsuarioSistema.list('nome'),
+    queryKey: ['usuarios_sistema', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId })
+      : base44.entities.UsuarioSistema.list('nome'),
   });
 
   // Vendas recentes para reimpressão (carrega só quando dialog aberto)
@@ -1030,6 +1040,7 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
         vendedor_id: vendedorSelecionado?.user_id || vendedorSelecionado?.id,
         vendedor_nome: vendedorSelecionado?.nome,
         caixa_id: caixaAberto.id,
+        loja_id: lojaFiltroId || null,
         itens: carrinho,
         subtotal: subtotalCalculado,
         desconto_total: descontoCalculado + descontoCupomCalculado,

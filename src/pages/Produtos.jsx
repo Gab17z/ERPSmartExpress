@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLoja } from "@/contexts/LojaContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -66,6 +67,7 @@ export default function Produtos() {
   const podVerCustos = user?.permissoes?.visualizar_custos === true || user?.permissoes?.administrador_sistema === true;
   const podeDeletar = user?.permissoes?.administrador_sistema === true;
   const podeEditarProdutos = hasPermission('editar_produtos') || hasPermission('gerenciar_produtos');
+  const { lojaFiltroId } = useLoja();
 
   const [dialogProduto, setDialogProduto] = useState(false);
   const [dialogEtiqueta, setDialogEtiqueta] = useState(false);
@@ -144,26 +146,33 @@ export default function Produtos() {
   }, []);
 
   const { data: produtos = [], isLoading } = useQuery({
-    queryKey: ['produtos'],
-    queryFn: () => base44.entities.Produto.list('-created_date'),
+    queryKey: ['produtos', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Produto.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.Produto.list('-created_date'),
     staleTime: 2 * 60 * 1000, // 2 minutos sem refetch
   });
 
   const { data: categorias = [] } = useQuery({
-    queryKey: ['categorias'],
-    queryFn: () => base44.entities.Categoria.list('nome'),
+    queryKey: ['categorias', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Categoria.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
+      : base44.entities.Categoria.list('nome'),
     staleTime: 5 * 60 * 1000, // 5 minutos
   });
 
   const { data: marcas = [] } = useQuery({
-    queryKey: ['marcas'],
-    queryFn: () => base44.entities.Marca.list('nome'),
+    queryKey: ['marcas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Marca.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
+      : base44.entities.Marca.list('nome'),
     staleTime: 5 * 60 * 1000, // 5 minutos
   });
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      const resultado = await base44.entities.Produto.create(data);
+      const dataWithLoja = { ...data, loja_id: lojaFiltroId || null };
+      const resultado = await base44.entities.Produto.create(dataWithLoja);
 
       // Registrar log de auditoria
       try {

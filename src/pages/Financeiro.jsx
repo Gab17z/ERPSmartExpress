@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
 import { createPageUrl } from "@/utils";
+import { useLoja } from "@/contexts/LojaContext";
 import { Link } from "react-router-dom";
 import {
   DollarSign,
@@ -72,20 +73,28 @@ export default function Financeiro() {
   const [paginaVencidas, setPaginaVencidas] = useState(1);
   const ITENS_POR_PAGINA = 20;
 
+  const { lojaFiltroId } = useLoja();
+
   // Queries
   const { data: vendas = [], isLoading: loadingVendas } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list('-created_date'),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.Venda.list('-created_date'),
   });
 
   const { data: contasReceber = [], isLoading: loadingReceber } = useQuery({
-    queryKey: ['contas-receber'],
-    queryFn: () => base44.entities.ContaReceber.list('-created_date'),
+    queryKey: ['contas-receber', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.ContaReceber.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.ContaReceber.list('-created_date'),
   });
 
   const { data: contasPagar = [], isLoading: loadingPagar } = useQuery({
-    queryKey: ['contas-pagar'],
-    queryFn: () => base44.entities.ContaPagar.list('-created_date'),
+    queryKey: ['contas-pagar', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.ContaPagar.list('-created_date'),
   });
 
   const { data: movimentacoes = [] } = useQuery({
@@ -99,8 +108,10 @@ export default function Financeiro() {
   });
 
   const { data: caixas = [] } = useQuery({
-    queryKey: ['caixas'],
-    queryFn: () => base44.entities.Caixa.list('-created_date'),
+    queryKey: ['caixas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Caixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.Caixa.list('-created_date'),
   });
 
   const { data: devolucoes = [] } = useQuery({

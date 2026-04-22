@@ -336,6 +336,7 @@ export default function Configuracoes() {
     email: "",
     telefone: "",
     cargo_id: "",
+    loja_id: "",
     senha: "",
     codigo_barras_autorizacao: "",
     senha_autorizacao: "",
@@ -655,6 +656,11 @@ export default function Configuracoes() {
     queryFn: () => base44.entities.Cargo.list('nivel_hierarquia'),
   });
 
+  const { data: lojas = [] } = useQuery({
+    queryKey: ['todas-lojas'],
+    queryFn: () => base44.entities.Loja.list('nome'),
+  });
+
   const { data: usuariosSistema = [] } = useQuery({ // Added for system-specific user data
     queryKey: ['usuarios-sistema'],
     queryFn: () => base44.entities.UsuarioSistema.list(),
@@ -680,6 +686,7 @@ export default function Configuracoes() {
           nome: novoUsuario.nome,
           cargo_id: cargo_id || null,
           cargo_nome: cargo?.nome || null,
+          loja_id: usuarioData.loja_id === "global" ? null : (usuarioData.loja_id || null),
           codigo_barras_autorizacao: codigo_barras_autorizacao || null,
           senha_autorizacao: senha_autorizacao || null,
           ativo: true
@@ -694,7 +701,7 @@ export default function Configuracoes() {
       toast.success("Usuário criado com sucesso!");
       setDialogUsuario(false);
       setEditingUsuario(null);
-      setUsuarioData({ nome: "", email: "", telefone: "", cargo_id: "", senha: "", codigo_barras_autorizacao: "", senha_autorizacao: "", ativo: true });
+      setUsuarioData({ nome: "", email: "", telefone: "", cargo_id: "", loja_id: "", senha: "", codigo_barras_autorizacao: "", senha_autorizacao: "", ativo: true });
       setTimeout(() => window.location.reload(), 1000);
     },
     onError: (error) => {
@@ -725,7 +732,8 @@ export default function Configuracoes() {
           codigo_barras_autorizacao: codigo_barras_autorizacao || null,
           senha_autorizacao: senha_autorizacao || null,
           cargo_id: cargo_id || null,
-          cargo_nome: cargo_id ? cargos.find(c => c.id === cargo_id)?.nome : null
+          cargo_nome: cargo_id ? cargos.find(c => c.id === cargo_id)?.nome : null,
+          loja_id: usuarioData.loja_id === "global" ? null : (usuarioData.loja_id || null)
         });
       } else {
         // Criar novo UsuarioSistema se não existe
@@ -736,6 +744,7 @@ export default function Configuracoes() {
           nome: usuarioAtualizado.nome,
           cargo_id: cargo_id || null,
           cargo_nome: cargo?.nome || null,
+          loja_id: usuarioData.loja_id === "global" ? null : (usuarioData.loja_id || null),
           codigo_barras_autorizacao: codigo_barras_autorizacao || null,
           senha_autorizacao: senha_autorizacao || null,
           ativo: true
@@ -750,7 +759,7 @@ export default function Configuracoes() {
       toast.success("Usuário atualizado com sucesso!");
       setDialogUsuario(false);
       setEditingUsuario(null);
-      setUsuarioData({ nome: "", email: "", telefone: "", cargo_id: "", senha: "", codigo_barras_autorizacao: "", senha_autorizacao: "", ativo: true });
+      setUsuarioData({ nome: "", email: "", telefone: "", cargo_id: "", loja_id: "", senha: "", codigo_barras_autorizacao: "", senha_autorizacao: "", ativo: true });
       setTimeout(() => window.location.reload(), 1000);
     },
     onError: (error) => {
@@ -4293,7 +4302,7 @@ export default function Configuracoes() {
         setDialogUsuario(open);
         if (!open) {
           setEditingUsuario(null);
-          setUsuarioData({ nome: "", email: "", telefone: "", cargo_id: "", senha: "", codigo_barras_autorizacao: "", senha_autorizacao: "", ativo: true });
+          setUsuarioData({ nome: "", email: "", telefone: "", cargo_id: "", loja_id: "", senha: "", codigo_barras_autorizacao: "", senha_autorizacao: "", ativo: true });
           setMostrarSenha(false);
           setMostrarSenhaAuth(false);
         }
@@ -4392,6 +4401,26 @@ export default function Configuracoes() {
               </Select>
             </div>
 
+            <div>
+              <Label>Loja (Acesso)</Label>
+              <Select
+                value={usuarioData.loja_id || "global"}
+                onValueChange={(value) => setUsuarioData(prev => ({ ...prev, loja_id: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Matriz (Global) ou Filial" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="global">Todas as Lojas (Acesso Global)</SelectItem>
+                  {lojas.map((loja) => (
+                    <SelectItem key={loja.id} value={loja.id}>
+                      {loja.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Mostrar seção de autorizações apenas se o cargo tiver permissões de PDV */}
             {(() => {
               const cargoSelecionado = cargos.find(c => c.id === usuarioData.cargo_id);
@@ -4455,7 +4484,7 @@ export default function Configuracoes() {
             <Button variant="outline" onClick={() => {
               setDialogUsuario(false);
               setEditingUsuario(null);
-              setUsuarioData({ nome: "", email: "", telefone: "", cargo_id: "", senha: "", codigo_barras_autorizacao: "", senha_autorizacao: "", ativo: true });
+              setUsuarioData({ nome: "", email: "", telefone: "", cargo_id: "", loja_id: "", senha: "", codigo_barras_autorizacao: "", senha_autorizacao: "", ativo: true });
             }}>
               Cancelar
             </Button>
