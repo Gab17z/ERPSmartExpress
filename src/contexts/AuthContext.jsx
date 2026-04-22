@@ -75,17 +75,21 @@ export function AuthProvider({ children }) {
       throw new Error('Sistema indisponível. Verifique a configuração do servidor.');
     }
 
-    // Buscar usuário pelo email (precisa da senha APENAS para validar login)
+    // Buscar usuário pelo email (case-insensitive)
     const { data: usuarios, error } = await supabase
       .from('usuario')
       .select('*')
-      .eq('email', email.toLowerCase().trim())
+      .ilike('email', email.trim())
       .eq('ativo', true)
       .limit(1);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Erro ao buscar usuário no banco:', error);
+      throw error;
+    }
 
     if (!usuarios || usuarios.length === 0) {
+      console.warn(`Tentativa de login falhou: Usuário não encontrado ou inativo (${email})`);
       throw new Error('Usuário não encontrado');
     }
 

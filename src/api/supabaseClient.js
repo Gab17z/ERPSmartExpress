@@ -101,7 +101,10 @@ class Entity {
     if (targetLimit !== null && targetLimit <= 1000) {
       let query = buildBaseQuery().limit(targetLimit);
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        console.error(`Erro na query [list] em ${this.tableName}:`, error);
+        throw error;
+      }
       return stripSensitive(this.tableName, parseEntityData(data || []));
     }
 
@@ -116,7 +119,10 @@ class Entity {
       let query = buildBaseQuery().range(from, to);
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        console.error(`Erro na query paginada [list] em ${this.tableName} (from: ${from}):`, error);
+        throw error;
+      }
 
       if (data && data.length > 0) {
         allData = [...allData, ...data];
@@ -151,7 +157,10 @@ class Entity {
       .eq('id', id)
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      console.error(`Erro na query [get] em ${this.tableName} (id: ${id}):`, error);
+      throw error;
+    }
     return stripSensitive(this.tableName, parseEntityData(data));
   }
 
@@ -162,7 +171,10 @@ class Entity {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error(`Erro na query [create] em ${this.tableName}:`, error);
+      throw error;
+    }
     return stripSensitive(this.tableName, parseEntityData(data));
   }
 
@@ -174,7 +186,10 @@ class Entity {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error(`Erro na query [update] em ${this.tableName} (id: ${id}):`, error);
+      throw error;
+    }
     return stripSensitive(this.tableName, parseEntityData(data));
   }
 
@@ -184,7 +199,10 @@ class Entity {
       .delete()
       .eq('id', id);
 
-    if (error) throw error;
+    if (error) {
+      console.error(`Erro na query [delete] em ${this.tableName} (id: ${id}):`, error);
+      throw error;
+    }
     return { success: true };
   }
 }

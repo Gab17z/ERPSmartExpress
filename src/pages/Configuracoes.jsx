@@ -3599,6 +3599,7 @@ export default function Configuracoes() {
                                           email: userBase.email || "",
                                           telefone: userBase.telefone || "",
                                           cargo_id: usuarioSistema?.cargo_id || userBase.cargo_id || "",
+                                          loja_id: usuarioSistema?.loja_id || userBase.loja_id || "",
                                           senha: "",
                                           codigo_barras_autorizacao: usuarioSistema?.codigo_barras_autorizacao || "",
                                           senha_autorizacao: usuarioSistema?.senha_autorizacao || "",
