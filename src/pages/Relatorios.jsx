@@ -107,15 +107,19 @@ export default function Relatorios() {
   });
 
   const { data: logsDesconto = [] } = useQuery({
-    queryKey: ['logs-desconto'],
-    queryFn: () => base44.entities.LogDesconto.list('-created_date'),
+    queryKey: ['logs-desconto', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.LogDesconto.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.LogDesconto.list('-created_date'),
   });
 
   const { data: comissoes = [] } = useQuery({
-    queryKey: ['comissoes'],
+    queryKey: ['comissoes', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.Comissao.list();
+        return lojaFiltroId
+          ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId })
+          : await base44.entities.Comissao.list();
       } catch {
         return [];
       }
@@ -123,10 +127,12 @@ export default function Relatorios() {
   });
 
   const { data: devolucoes = [] } = useQuery({
-    queryKey: ['devolucoes'],
+    queryKey: ['devolucoes', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.Devolucao.list();
+        return lojaFiltroId
+          ? await base44.entities.Devolucao.filter({ loja_id: lojaFiltroId })
+          : await base44.entities.Devolucao.list();
       } catch {
         return [];
       }

@@ -10,21 +10,27 @@ import { Calendar, Cake, Phone, Mail, MessageSquare, Send, Eye } from "lucide-re
 import { toast } from "sonner";
 import { format, differenceInDays, parseISO, isValid, startOfDay } from "date-fns";
 import ClienteHistorico from "@/components/marketing/ClienteHistorico";
+import { useLoja } from "@/contexts/LojaContext";
 
 export default function Aniversarios() {
+  const { lojaFiltroId } = useLoja();
   const [searchTerm, setSearchTerm] = useState("");
   const [filtroMes, setFiltroMes] = useState("todos");
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
   const [dialogHistorico, setDialogHistorico] = useState(false);
 
   const { data: clientes = [] } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: () => base44.entities.Cliente.list('nome_completo'),
+    queryKey: ['clientes', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: 'nome_completo' })
+      : lojaFiltroId ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: 'nome_completo' }) : base44.entities.Cliente.list('nome_completo'),
   });
 
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list('-created_date'),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : lojaFiltroId ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : base44.entities.Venda.list('-created_date'),
   });
 
   const clientesComAniversario = useMemo(() => {

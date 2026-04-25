@@ -9,7 +9,9 @@ import { LojaProvider } from "@/contexts/LojaContext"
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutos
+      staleTime: 0, // Dados são considerados velhos instantaneamente
+      refetchOnMount: 'always', // Sempre recarrega ao entrar na página
+      refetchOnWindowFocus: true, // Recarrega ao voltar para a aba
       retry: 1,
     },
   },

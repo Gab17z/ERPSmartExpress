@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Phone, Mail, Calendar, TrendingUp, Users, Target, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { useLoja } from "@/contexts/LojaContext";
 
 const CORES_STATUS = {
   novo: "bg-blue-100 text-blue-700 border-blue-300",
@@ -53,16 +54,20 @@ export default function CRM() {
   });
 
   const { user } = useAuth();
+  const { lojaFiltroId } = useLoja();
   const queryClient = useQueryClient();
 
   const { data: leads = [] } = useQuery({
-    queryKey: ['leads'],
-    queryFn: () => base44.entities.LeadCRM.list('-created_date'),
+    queryKey: ['leads', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.LeadCRM.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : lojaFiltroId ? base44.entities.LeadCRM.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : base44.entities.LeadCRM.list('-created_date'),
   });
 
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.LeadCRM.create({
       ...data,
+      loja_id: lojaFiltroId || user?.loja_id || null,
       data_primeiro_contato: new Date().toISOString(),
       responsavel: user?.nome,
       responsavel_id: user?.id,
@@ -74,7 +79,7 @@ export default function CRM() {
       }]
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['leads', lojaFiltroId] });
       toast.success("Lead cadastrado!");
       setDialogLead(false);
       resetForm();
@@ -84,7 +89,7 @@ export default function CRM() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.LeadCRM.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['leads', lojaFiltroId] });
       toast.success("Lead atualizado!");
     }
   });

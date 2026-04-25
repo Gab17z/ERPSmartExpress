@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ import { createPageUrl } from "@/utils";
 
 export default function ContasPagar() {
   const navigate = useNavigate();
+  const { lojaFiltroId } = useLoja();
   const [dialogConta, setDialogConta] = useState(false);
   const [dialogBaixa, setDialogBaixa] = useState(false);
   const [dialogFornecedor, setDialogFornecedor] = useState(false);
@@ -40,10 +42,12 @@ export default function ContasPagar() {
   const queryClient = useQueryClient();
 
   const { data: contas = [] } = useQuery({
-    queryKey: ['contas-pagar'],
+    queryKey: ['contas-pagar', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.ContaPagar.list('-data_vencimento');
+        return lojaFiltroId
+          ? await base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' })
+          : lojaFiltroId ? await base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' }) : await base44.entities.ContaPagar.list('-data_vencimento');
       } catch {
         return [];
       }
@@ -52,10 +56,12 @@ export default function ContasPagar() {
   });
 
   const { data: comissoes = [] } = useQuery({
-    queryKey: ['comissoes'],
+    queryKey: ['comissoes', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.Comissao.list();
+        return lojaFiltroId
+          ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId })
+          : lojaFiltroId ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }) : await base44.entities.Comissao.list();
       } catch {
         return [];
       }
@@ -64,8 +70,10 @@ export default function ContasPagar() {
   });
 
   const { data: fornecedores = [] } = useQuery({
-    queryKey: ['fornecedores'],
-    queryFn: () => base44.entities.Fornecedor.list('nome_fantasia'),
+    queryKey: ['fornecedores', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Fornecedor.filter({ loja_id: lojaFiltroId }, { order: 'nome_fantasia' })
+      : lojaFiltroId ? base44.entities.Fornecedor.filter({ loja_id: lojaFiltroId }, { order: 'nome_fantasia' }) : base44.entities.Fornecedor.list('nome_fantasia'),
   });
 
   // CORREÇÃO: Buscar categorias dinâmicas do banco
@@ -73,7 +81,7 @@ export default function ContasPagar() {
     queryKey: ['categorias-despesa'],
     queryFn: async () => {
       try {
-        return await base44.entities.CategoriaDespesa.list('nome');
+        return lojaFiltroId ? await base44.entities.CategoriaDespesa.filter({ loja_id: lojaFiltroId }, { order: 'nome' }) : await base44.entities.CategoriaDespesa.list('nome');
       } catch {
         // Fallback para categorias padrão se a tabela não existir
         return [
@@ -89,7 +97,10 @@ export default function ContasPagar() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data) => base44.entities.ContaPagar.create(data),
+    mutationFn: (data) => base44.entities.ContaPagar.create({
+      ...data,
+      loja_id: lojaFiltroId || null
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contas-pagar'] });
       toast.success("Conta criada!");
@@ -118,7 +129,8 @@ export default function ContasPagar() {
       categoria: formData.categoria,
       valor: valorNumerico,
       status: "pendente",
-      data_vencimento: formData.data_vencimento
+      data_vencimento: formData.data_vencimento,
+      loja_id: lojaFiltroId || null
     });
   };
 

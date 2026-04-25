@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,6 +11,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import DateRangeFilter from "@/components/DateRangeFilter";
 
 export default function FluxoCaixa() {
+  const { lojaFiltroId } = useLoja();
   const hoje = new Date();
   const [filtro, setFiltro] = useState({
     dataInicio: format(startOfMonth(hoje), 'yyyy-MM-dd'),
@@ -19,15 +21,19 @@ export default function FluxoCaixa() {
   // CORREÇÃO: Remover limites para não cortar dados importantes
   // Usar filtro de data no cliente para performance
   const { data: vendas = [], isLoading: loadingVendas } = useQuery({
-    queryKey: ['vendas-fluxo'],
-    queryFn: () => base44.entities.Venda.list('-created_date'),
+    queryKey: ['vendas-fluxo', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.Venda.list('-created_date'),
   });
 
   const { data: contasPagar = [], isLoading: loadingContas } = useQuery({
-    queryKey: ['contas-pagar-fluxo'],
+    queryKey: ['contas-pagar-fluxo', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.ContaPagar.list('-created_date');
+        return lojaFiltroId
+          ? await base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+          : await base44.entities.ContaPagar.list('-created_date');
       } catch {
         return [];
       }
@@ -35,10 +41,12 @@ export default function FluxoCaixa() {
   });
 
   const { data: comissoes = [], isLoading: loadingComissoes } = useQuery({
-    queryKey: ['comissoes-fluxo'],
+    queryKey: ['comissoes-fluxo', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.Comissao.list('-data_pagamento');
+        return lojaFiltroId
+          ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }, { order: '-data_pagamento' })
+          : await base44.entities.Comissao.list('-data_pagamento');
       } catch {
         return [];
       }

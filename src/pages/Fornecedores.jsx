@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
+import { useLoja } from "@/contexts/LojaContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -29,6 +30,7 @@ import CEPInput from "@/components/CEPInput";
 
 export default function Fornecedores() {
   const { user } = useAuth();
+  const { lojaFiltroId } = useLoja();
   const [dialogFornecedor, setDialogFornecedor] = useState(false);
   const [dialogExcluir, setDialogExcluir] = useState(false);
   const [fornecedorParaExcluir, setFornecedorParaExcluir] = useState(null);
@@ -74,12 +76,14 @@ export default function Fornecedores() {
   }, []);
 
   const { data: fornecedores = [], isLoading } = useQuery({
-    queryKey: ['fornecedores'],
-    queryFn: () => base44.entities.Fornecedor.list('nome_fantasia'),
+    queryKey: ['fornecedores', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Fornecedor.filter({ loja_id: lojaFiltroId }, { order: 'nome_fantasia' })
+      : base44.entities.Fornecedor.list('nome_fantasia'),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data) => base44.entities.Fornecedor.create(data),
+    mutationFn: (data) => base44.entities.Fornecedor.create({ ...data, loja_id: lojaFiltroId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fornecedores'] });
       toast.success("Fornecedor cadastrado com sucesso!");
@@ -110,7 +114,9 @@ export default function Fornecedores() {
   const deleteMutation = useMutation({
     mutationFn: async (id) => {
       // CRÍTICO: Verificar se há produtos vinculados antes de excluir
-      const produtos = await base44.entities.Produto.list();
+      const produtos = lojaFiltroId 
+        ? await base44.entities.Produto.filter({ loja_id: lojaFiltroId })
+        : await base44.entities.Produto.list();
       const vinculados = produtos.filter(p => p.fornecedor_id === id);
       if (vinculados.length > 0) {
         throw new Error(`Não é possível excluir: ${vinculados.length} produto(s) vinculado(s) a este fornecedor.`);

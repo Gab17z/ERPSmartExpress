@@ -123,14 +123,14 @@ export default function Clientes() {
     queryKey: ['clientes', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-      : base44.entities.Cliente.list('-created_date'),
+      : lojaFiltroId ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : base44.entities.Cliente.list('-created_date'),
   });
 
   const { data: vendas = [] } = useQuery({
     queryKey: ['vendas', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-      : base44.entities.Venda.list('-created_date'),
+      : lojaFiltroId ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : base44.entities.Venda.list('-created_date'),
   });
 
   const createMutation = useMutation({
@@ -139,7 +139,8 @@ export default function Clientes() {
       if (data.cpf_cnpj) {
         const cpfLimpo = data.cpf_cnpj.replace(/\D/g, '');
         const existentes = await base44.entities.Cliente.filter({ 
-          cpf_cnpj: data.cpf_cnpj 
+          cpf_cnpj: data.cpf_cnpj,
+          loja_id: lojaFiltroId || user?.loja_id || null
         });
 
         const clienteExistente = existentes.find(c =>
@@ -151,15 +152,17 @@ export default function Clientes() {
         }
       }
 
-      // CRÍTICO: Garantir que loja_id seja enviado (fallback para loja do usuário se filtro for global)
+      // CRÍTICO: Garantir atribuição ao usuário e loja_id (Regra de Ouro)
       const dataWithLoja = { 
         ...data, 
-        loja_id: lojaFiltroId || user?.loja_id || null 
+        loja_id: lojaFiltroId || user?.loja_id || null,
+        cadastrado_por_id: user?.id || null,
+        cadastrado_por_nome: user?.nome || null
       };
       return base44.entities.Cliente.create(dataWithLoja);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['clientes', lojaFiltroId] });
       toast.success("Cliente cadastrado com sucesso!");
       setDialogOpen(false);
       setSelectedCliente(null);
@@ -180,7 +183,8 @@ export default function Clientes() {
       if (data.cpf_cnpj) {
         const cpfLimpo = data.cpf_cnpj.replace(/\D/g, '');
         const existentes = await base44.entities.Cliente.filter({ 
-          cpf_cnpj: data.cpf_cnpj 
+          cpf_cnpj: data.cpf_cnpj,
+          loja_id: lojaFiltroId || user?.loja_id || null
         });
 
         const clienteExistente = existentes.find(c =>
@@ -195,7 +199,7 @@ export default function Clientes() {
       return base44.entities.Cliente.update(id, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['clientes', lojaFiltroId] });
       toast.success("Cliente atualizado!");
       setDialogOpen(false);
       setSelectedCliente(null);
@@ -229,7 +233,7 @@ export default function Clientes() {
       return base44.entities.Cliente.delete(id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['clientes', lojaFiltroId] });
       toast.success("Cliente excluído!");
     },
     onError: (error) => {

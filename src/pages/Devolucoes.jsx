@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLoja } from "@/contexts/LojaContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +18,7 @@ import { format } from "date-fns";
 
 export default function Devolucoes() {
   const { user } = useAuth();
+  const { lojaFiltroId } = useLoja();
   const [dialogDevolucao, setDialogDevolucao] = useState(false);
   const [dialogVenda, setDialogVenda] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -36,10 +38,12 @@ export default function Devolucoes() {
   const queryClient = useQueryClient();
 
   const { data: devolucoes = [] } = useQuery({
-    queryKey: ['devolucoes'],
+    queryKey: ['devolucoes', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.Devolucao.list('-created_date');
+        return lojaFiltroId
+          ? await base44.entities.Devolucao.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+          : await base44.entities.Devolucao.list('-created_date');
       } catch {
         return [];
       }
@@ -48,14 +52,17 @@ export default function Devolucoes() {
   });
 
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list('-data_venda'),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-data_venda' })
+      : base44.entities.Venda.list('-data_venda'),
   });
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
       // Mapeamento correto para as colunas do Supabase + proteção contra campos falsos
       const devolucao = await base44.entities.Devolucao.create({
+        loja_id: lojaFiltroId || null,
         venda_id: data.venda_id,
         cliente_id: data.cliente_id || null,
         cliente_nome: data.cliente_nome,
@@ -114,7 +121,10 @@ export default function Devolucoes() {
       // CRÍTICO: Registar saída no caixa (se houver caixa aberto)
       if (devolucao.tipo_reembolso !== 'troca') {
         try {
-          const caixasAbertos = await base44.entities.Caixa.filter({ status: 'aberto' });
+          const caixasAbertos = await base44.entities.Caixa.filter({ 
+            status: 'aberto',
+            loja_id: lojaFiltroId || null 
+          });
           if (caixasAbertos.length > 0) {
             const caixaAtivo = caixasAbertos[0];
             

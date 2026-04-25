@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Smartphone, TrendingUp, DollarSign } from "lucide-react";
@@ -8,6 +9,7 @@ import { format, isWithinInterval, parseISO, startOfMonth, startOfDay, endOfDay 
 import DateRangeFilter from "@/components/DateRangeFilter";
 
 export default function RelatorioSeminovos() {
+  const { lojaFiltroId } = useLoja();
   const hoje = new Date();
   const [filtro, setFiltro] = useState({
     dataInicio: format(startOfMonth(hoje), 'yyyy-MM-dd'),
@@ -26,8 +28,10 @@ export default function RelatorioSeminovos() {
   };
 
   const { data: avaliacoes = [] } = useQuery({
-    queryKey: ['avaliacoes'],
-    queryFn: () => base44.entities.AvaliacaoSeminovo.list('-data_avaliacao'),
+    queryKey: ['avaliacoes', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.AvaliacaoSeminovo.filter({ loja_id: lojaFiltroId })
+      : lojaFiltroId ? base44.entities.AvaliacaoSeminovo.filter({ loja_id: lojaFiltroId }, { order: '-data_avaliacao' }) : base44.entities.AvaliacaoSeminovo.list('-data_avaliacao'),
   });
 
   const avaliacoesFiltradas = avaliacoes.filter(a => filtrarPorData(a.data_avaliacao || a.created_date));

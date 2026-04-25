@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Target, Search, Plus, Trash2, UserCircle, Award, TrendingUp, Star, Zap, Medal, Smartphone } from "lucide-react";
 import { format } from "date-fns";
 import DateRangeFilter from "@/components/DateRangeFilter";
@@ -15,16 +16,20 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import MetasAprimorado from "./MetasAprimorado";
 
 export default function Metas() {
   const { user } = useAuth();
+  const { lojaFiltroId } = useLoja();
+  const queryClient = useQueryClient();
   const isAdmin = user?.cargo?.nome?.toLowerCase() === 'administrador' || 
                  (typeof user?.cargo === 'string' && user?.cargo?.toLowerCase() === 'administrador') || 
                  user?.permissoes?.administrador_sistema === true;
   const [dialogMetas, setDialogMetas] = useState(false);
   const [buscaProduto, setBuscaProduto] = useState("");
   const [vendedorAudit, setVendedorAudit] = useState("todos");
+  const [buscaUsuario, setBuscaUsuario] = useState("");
   
   const [metasConfig, setMetasConfig] = useState({
     vendas_loja: 50000,
@@ -48,11 +53,62 @@ export default function Metas() {
     individuais: {}
   });
 
+   const { data: produtos = [] } = useQuery({
+    queryKey: ['produtos-metas'],
+    queryFn: () => base44.entities.Produto.list('nome'),
+  });
+
+  // CARREGAR METAS DO BANCO DE DADOS (NUVEM)
+  const { data: metasDb } = useQuery({
+    queryKey: ['metas-sistema-db', lojaFiltroId],
+    queryFn: async () => {
+      try {
+        let configs = [];
+        // 1. Tentar por loja específica
+        if (lojaFiltroId) {
+          configs = await base44.entities.Configuracao.filter({ 
+            chave: 'metas_sistema',
+            loja_id: lojaFiltroId
+          });
+        }
+        // 2. Fallback: buscar config global (loja_id null)
+        if (configs.length === 0) {
+          configs = await base44.entities.Configuracao.filter({ 
+            chave: 'metas_sistema',
+            loja_id: null
+          });
+        }
+        // 3. Fallback final: qualquer config disponível
+        if (configs.length === 0) {
+          configs = await base44.entities.Configuracao.filter({ 
+            chave: 'metas_sistema'
+          });
+        }
+        return configs[0] || null;
+      } catch (error) {
+        console.error("Erro ao buscar metas do banco:", error);
+        return null;
+      }
+    },
+  });
+
   React.useEffect(() => {
     try {
-      const metasSalvas = localStorage.getItem('metas_sistema');
-      if (metasSalvas) {
-        const parsed = JSON.parse(metasSalvas);
+      const metasNuvem = metasDb?.valor;
+      const metasLocais = localStorage.getItem('metas_sistema');
+      
+      let parsed = null;
+      if (metasNuvem) {
+        parsed = metasNuvem;
+      } else if (metasLocais) {
+        try {
+          parsed = JSON.parse(metasLocais);
+        } catch {
+          parsed = null;
+        }
+      }
+
+      if (parsed) {
         setMetasConfig({
           vendas_loja: Math.max(1, parsed.vendas_loja || 50000),
           os_loja: Math.max(1, parsed.os_loja || 100),
@@ -78,31 +134,73 @@ export default function Metas() {
     } catch (error) {
       console.error("Erro ao carregar metas:", error);
     }
-  }, [dialogMetas]);
+  }, [metasDb, dialogMetas]);
 
-  const { data: usuariosSistema = [] } = useQuery({
-    queryKey: ['usuarios-sistema'],
-    queryFn: () => base44.entities.UsuarioSistema.list(),
+   const { data: usuariosSistema = [] } = useQuery({
+    queryKey: ['usuarios-sistema', lojaFiltroId],
+    queryFn: () => lojaFiltroId 
+      ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId })
+      : base44.entities.UsuarioSistema.list(),
   });
 
-  const { data: produtos = [] } = useQuery({
-    queryKey: ['produtos-metas'],
-    queryFn: () => base44.entities.Produto.list('nome'),
-  });
+  const salvarMetas = async () => {
+    try {
+      // 1. Salvar no Banco de Dados (Nuvem)
+      const targetLojaId = lojaFiltroId || null;
+      
+      if (metasDb?.id) {
+        await base44.entities.Configuracao.update(metasDb.id, {
+          valor: metasConfig,
+          updated_date: new Date().toISOString()
+        });
+      } else {
+        // Tentar encontrar se já existe uma config global antes de criar duplicado
+        const configsExistentes = await base44.entities.Configuracao.filter({ 
+          chave: 'metas_sistema',
+          loja_id: targetLojaId
+        });
 
-  const salvarMetas = () => {
-    localStorage.setItem('metas_sistema', JSON.stringify(metasConfig));
-    toast.success("Metas atualizadas!");
-    setDialogMetas(false);
-    setTimeout(() => {
-      window.location.reload();
-    }, 1000);
+        if (configsExistentes.length > 0) {
+          await base44.entities.Configuracao.update(configsExistentes[0].id, {
+            valor: metasConfig,
+            updated_date: new Date().toISOString()
+          });
+        } else {
+          await base44.entities.Configuracao.create({
+            chave: 'metas_sistema',
+            valor: metasConfig,
+            loja_id: targetLojaId,
+            descricao: 'Configuração de metas e performance da loja'
+          });
+        }
+      }
+
+      // 2. Salvar no LocalStorage (Fallback)
+      localStorage.setItem('metas_sistema', JSON.stringify(metasConfig));
+      
+      toast.success("Metas sincronizadas na nuvem!");
+      setDialogMetas(false);
+      
+      queryClient.invalidateQueries({ queryKey: ['metas-sistema-db', lojaFiltroId] });
+      
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (error) {
+      console.error("Erro ao salvar metas:", error);
+      toast.error("Erro ao salvar metas no banco de dados");
+    }
   };
   
+  
+  // Filtro fixo: dia 1 ao último dia do mês atual
   const hoje = new Date();
+  const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  const ultimoDiaMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+  const pad = (n) => String(n).padStart(2, '0');
   const [filtro, setFiltro] = useState({
-    dataInicio: format(hoje, 'yyyy-MM-dd'),
-    dataFim: format(hoje, 'yyyy-MM-dd')
+    dataInicio: `${primeiroDiaMes.getFullYear()}-${pad(primeiroDiaMes.getMonth()+1)}-${pad(primeiroDiaMes.getDate())}`,
+    dataFim: `${ultimoDiaMes.getFullYear()}-${pad(ultimoDiaMes.getMonth()+1)}-${pad(ultimoDiaMes.getDate())}`
   });
 
   const adicionarMetaExtra = () => {
@@ -165,10 +263,12 @@ export default function Metas() {
           </div>
         )}
 
-        <div className="flex items-center gap-2">
-          <DateRangeFilter
-            onFilterChange={setFiltro}
-          />
+         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <DateRangeFilter
+              onFilterChange={setFiltro}
+            />
+          )}
           {isAdmin && (
             <Button onClick={() => setDialogMetas(true)} className="bg-blue-600 hover:bg-blue-700">
               <Target className="w-4 h-4 mr-2" />
@@ -210,24 +310,41 @@ export default function Metas() {
                     <TrendingUp className="w-4 h-4 text-blue-600" /> Metas Globais da Loja
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold text-slate-600">Faturamento Alvo (R$)</Label>
-                      <Input
-                        type="number"
-                        className="bg-white border-slate-200"
-                        value={metasConfig.vendas_loja}
-                        onChange={(e) => setMetasConfig({...metasConfig, vendas_loja: parseFloat(e.target.value) || 0})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold text-slate-600">Volume de OS (Qtd)</Label>
-                      <Input
-                        type="number"
-                        className="bg-white border-slate-200"
-                        value={metasConfig.os_loja}
-                        onChange={(e) => setMetasConfig({...metasConfig, os_loja: parseInt(e.target.value) || 0})}
-                      />
-                    </div>
+                    {(() => {
+                      const somaVendas = Object.values(metasConfig.individuais || {}).reduce((acc, curr) => acc + (parseFloat(curr.vendas) || 0), 0);
+                      const somaOS = Object.values(metasConfig.individuais || {}).reduce((acc, curr) => acc + (parseInt(curr.os) || 0), 0);
+                      
+                      return (
+                        <>
+                          <div className="space-y-2">
+                            <Label className="text-xs font-semibold text-slate-600 flex justify-between">
+                              <span>Faturamento Alvo (R$)</span>
+                              {somaVendas > 0 && <span className="text-[10px] text-blue-600 font-bold uppercase">Calculado por Vendedores</span>}
+                            </Label>
+                            <Input
+                              type="number"
+                              className={`bg-white border-slate-200 ${somaVendas > 0 ? 'border-blue-300 bg-blue-50/30' : ''}`}
+                              value={somaVendas > 0 ? somaVendas : metasConfig.vendas_loja}
+                              onChange={(e) => setMetasConfig({...metasConfig, vendas_loja: parseFloat(e.target.value) || 0})}
+                              disabled={somaVendas > 0}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs font-semibold text-slate-600 flex justify-between">
+                              <span>Volume de OS (Qtd)</span>
+                              {somaOS > 0 && <span className="text-[10px] text-blue-600 font-bold uppercase">Calculado por Vendedores</span>}
+                            </Label>
+                            <Input
+                              type="number"
+                              className={`bg-white border-slate-200 ${somaOS > 0 ? 'border-blue-300 bg-blue-50/30' : ''}`}
+                              value={somaOS > 0 ? somaOS : metasConfig.os_loja}
+                              onChange={(e) => setMetasConfig({...metasConfig, os_loja: parseInt(e.target.value) || 0})}
+                              disabled={somaOS > 0}
+                            />
+                          </div>
+                        </>
+                      );
+                    })()}
                     <div className="space-y-2">
                       <Label className="text-xs font-semibold text-slate-600">Ticket Médio (R$)</Label>
                       <Input
@@ -238,58 +355,165 @@ export default function Metas() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs font-semibold text-slate-600">Novos Clientes (Qtd)</Label>
-                      <Input
-                        type="number"
-                        className="bg-white border-slate-200"
-                        value={metasConfig.novos_clientes}
-                        onChange={(e) => setMetasConfig({...metasConfig, novos_clientes: parseInt(e.target.value) || 0})}
-                      />
+                      {(() => {
+                        const somaClientes = Object.values(metasConfig.individuais || {}).reduce((acc, curr) => acc + (parseInt(curr.novos_clientes) || 0), 0);
+                        return (
+                          <>
+                            <Label className="text-xs font-semibold text-slate-600 flex justify-between">
+                              <span>Novos Clientes (Qtd)</span>
+                              {somaClientes > 0 && <span className="text-[10px] text-blue-600 font-bold uppercase">Soma dos Vendedores</span>}
+                            </Label>
+                            <Input
+                              type="number"
+                              className={`bg-white border-slate-200 ${somaClientes > 0 ? 'border-blue-300 bg-blue-50/30' : ''}`}
+                              value={somaClientes > 0 ? somaClientes : metasConfig.novos_clientes}
+                              onChange={(e) => setMetasConfig({...metasConfig, novos_clientes: parseInt(e.target.value) || 0})}
+                              disabled={somaClientes > 0}
+                            />
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
                 
                 {usuariosSistema && usuariosSistema.length > 0 && (
                   <div className="space-y-4">
-                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                      <Star className="w-4 h-4 text-yellow-600" /> Metas Individuais (Vendedores)
-                    </h3>
-                    <div className="space-y-3">
-                      {usuariosSistema.map(u => (
-                        <div key={u.user_id} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:border-blue-200 transition-colors">
-                          <div className="md:col-span-5">
-                            <p className="font-bold text-slate-900">{u.user_nome || u.nome || u.id}</p>
-                            <p className="text-[10px] text-blue-600 font-semibold uppercase">{u.cargo_nome}</p>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                        <Star className="w-4 h-4 text-yellow-600" /> Metas Individuais ({usuariosSistema.length})
+                      </h3>
+                      <div className="relative w-full md:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <Input 
+                          placeholder="Buscar funcionário..." 
+                          className="pl-9 h-9 text-xs border-slate-200 bg-slate-50"
+                          value={buscaUsuario}
+                          onChange={(e) => setBuscaUsuario(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      {(usuariosSistema || []).filter(u => 
+                        (u.user_nome || u.nome || "").toLowerCase().includes(buscaUsuario.toLowerCase()) ||
+                        (u.cargo_nome || "").toLowerCase().includes(buscaUsuario.toLowerCase())
+                      ).map(u => (
+                        <div key={u.user_id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-blue-300 transition-all">
+                          <div className="flex items-center justify-between mb-4 border-b pb-4">
+                            <div>
+                              <p className="font-bold text-lg text-slate-900">{u.user_nome || u.nome || u.id}</p>
+                              <p className="text-xs text-blue-600 font-semibold uppercase">{u.cargo_nome}</p>
+                            </div>
+                            <Badge variant="outline" className="bg-slate-50 text-slate-500 border-slate-200">UUID: {u.user_id}</Badge>
                           </div>
-                          <div className="md:col-span-4 flex items-center gap-2">
-                            <Label className="text-[10px] whitespace-nowrap text-slate-500 w-12 text-right">Vendas R$</Label>
-                            <Input 
-                              type="number"
-                              className="h-8 text-xs border-slate-200"
-                              value={metasConfig.individuais?.[u.user_id]?.vendas || ''}
-                              onChange={(e) => setMetasConfig({
-                                ...metasConfig,
-                                individuais: {
-                                  ...(metasConfig.individuais || {}),
-                                  [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), vendas: parseFloat(e.target.value) || 0 }
-                                }
-                              })}
-                            />
-                          </div>
-                          <div className="md:col-span-3 flex items-center gap-2">
-                            <Label className="text-[10px] whitespace-nowrap text-slate-500 w-10 text-right">OS Qtd</Label>
-                            <Input 
-                              type="number"
-                              className="h-8 text-xs border-slate-200"
-                              value={metasConfig.individuais?.[u.user_id]?.os || ''}
-                              onChange={(e) => setMetasConfig({
-                                ...metasConfig,
-                                individuais: {
-                                  ...(metasConfig.individuais || {}),
-                                  [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), os: parseInt(e.target.value) || 0 }
-                                }
-                              })}
-                            />
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold text-slate-500 uppercase">Vendas (R$)</Label>
+                              <Input 
+                                type="number"
+                                className="h-9 border-slate-200 focus:border-blue-400"
+                                value={metasConfig.individuais?.[u.user_id]?.vendas || ''}
+                                onChange={(e) => setMetasConfig({
+                                  ...metasConfig,
+                                  individuais: {
+                                    ...(metasConfig.individuais || {}),
+                                    [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), vendas: parseFloat(e.target.value) || 0 }
+                                  }
+                                })}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold text-slate-500 uppercase">O.S (Qtd)</Label>
+                              <Input 
+                                type="number"
+                                className="h-9 border-slate-200 focus:border-blue-400"
+                                value={metasConfig.individuais?.[u.user_id]?.os || ''}
+                                onChange={(e) => setMetasConfig({
+                                  ...metasConfig,
+                                  individuais: {
+                                    ...(metasConfig.individuais || {}),
+                                    [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), os: parseInt(e.target.value) || 0 }
+                                  }
+                                })}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold text-slate-500 uppercase">Ticket Médio (R$)</Label>
+                              <Input 
+                                type="number"
+                                className="h-9 border-slate-200 focus:border-blue-400"
+                                value={metasConfig.individuais?.[u.user_id]?.ticket_medio || ''}
+                                onChange={(e) => setMetasConfig({
+                                  ...metasConfig,
+                                  individuais: {
+                                    ...(metasConfig.individuais || {}),
+                                    [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), ticket_medio: parseFloat(e.target.value) || 0 }
+                                  }
+                                })}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold text-slate-500 uppercase">Novos Clientes</Label>
+                              <Input 
+                                type="number"
+                                className="h-9 border-slate-200 focus:border-blue-400"
+                                value={metasConfig.individuais?.[u.user_id]?.novos_clientes || ''}
+                                onChange={(e) => setMetasConfig({
+                                  ...metasConfig,
+                                  individuais: {
+                                    ...(metasConfig.individuais || {}),
+                                    [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), novos_clientes: parseInt(e.target.value) || 0 }
+                                  }
+                                })}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold text-slate-500 uppercase">iPhone Novo (Qtd)</Label>
+                              <Input 
+                                type="number"
+                                className="h-9 border-slate-200 focus:border-blue-400"
+                                value={metasConfig.individuais?.[u.user_id]?.iphone_novo || ''}
+                                onChange={(e) => setMetasConfig({
+                                  ...metasConfig,
+                                  individuais: {
+                                    ...(metasConfig.individuais || {}),
+                                    [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), iphone_novo: parseInt(e.target.value) || 0 }
+                                  }
+                                })}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold text-slate-500 uppercase">iPhone Semi (Qtd)</Label>
+                              <Input 
+                                type="number"
+                                className="h-9 border-slate-200 focus:border-blue-400"
+                                value={metasConfig.individuais?.[u.user_id]?.iphone_seminovo || ''}
+                                onChange={(e) => setMetasConfig({
+                                  ...metasConfig,
+                                  individuais: {
+                                    ...(metasConfig.individuais || {}),
+                                    [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), iphone_seminovo: parseInt(e.target.value) || 0 }
+                                  }
+                                })}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold text-slate-500 uppercase">Android (Qtd)</Label>
+                              <Input 
+                                type="number"
+                                className="h-9 border-slate-200 focus:border-blue-400"
+                                value={metasConfig.individuais?.[u.user_id]?.android || ''}
+                                onChange={(e) => setMetasConfig({
+                                  ...metasConfig,
+                                  individuais: {
+                                    ...(metasConfig.individuais || {}),
+                                    [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), android: parseInt(e.target.value) || 0 }
+                                  }
+                                })}
+                              />
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -308,33 +532,55 @@ export default function Metas() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-3 p-4 border rounded-xl bg-white shadow-sm">
-                    <Label className="text-xs font-bold text-slate-800">iPhones Novos</Label>
-                    <Input
-                      type="number"
-                      value={metasConfig.iphone_novo}
-                      onChange={(e) => setMetasConfig({...metasConfig, iphone_novo: parseInt(e.target.value) || 0})}
-                      className="border-slate-200"
-                    />
-                  </div>
-                  <div className="space-y-3 p-4 border rounded-xl bg-white shadow-sm">
-                    <Label className="text-xs font-bold text-slate-800">iPhones Seminovo</Label>
-                    <Input
-                      type="number"
-                      value={metasConfig.iphone_seminovo}
-                      onChange={(e) => setMetasConfig({...metasConfig, iphone_seminovo: parseInt(e.target.value) || 0})}
-                      className="border-slate-200"
-                    />
-                  </div>
-                  <div className="space-y-3 p-4 border rounded-xl bg-white shadow-sm">
-                    <Label className="text-xs font-bold text-slate-800">Androids</Label>
-                    <Input
-                      type="number"
-                      value={metasConfig.android}
-                      onChange={(e) => setMetasConfig({...metasConfig, android: parseInt(e.target.value) || 0})}
-                      className="border-slate-200"
-                    />
-                  </div>
+                  {(() => {
+                    const somaIphoneNovo = Object.values(metasConfig.individuais || {}).reduce((acc, curr) => acc + (parseInt(curr.iphone_novo) || 0), 0);
+                    const somaIphoneSemi = Object.values(metasConfig.individuais || {}).reduce((acc, curr) => acc + (parseInt(curr.iphone_seminovo) || 0), 0);
+                    const somaAndroid = Object.values(metasConfig.individuais || {}).reduce((acc, curr) => acc + (parseInt(curr.android) || 0), 0);
+                    
+                    return (
+                      <>
+                        <div className="space-y-3 p-4 border rounded-xl bg-white shadow-sm">
+                          <Label className="text-xs font-bold text-slate-800 flex justify-between">
+                            <span>iPhones Novos</span>
+                            {somaIphoneNovo > 0 && <span className="text-[9px] text-blue-600 font-bold uppercase">Soma: {somaIphoneNovo}</span>}
+                          </Label>
+                          <Input
+                            type="number"
+                            value={somaIphoneNovo > 0 ? somaIphoneNovo : metasConfig.iphone_novo}
+                            onChange={(e) => setMetasConfig({...metasConfig, iphone_novo: parseInt(e.target.value) || 0})}
+                            className={`border-slate-200 ${somaIphoneNovo > 0 ? 'bg-blue-50' : ''}`}
+                            disabled={somaIphoneNovo > 0}
+                          />
+                        </div>
+                        <div className="space-y-3 p-4 border rounded-xl bg-white shadow-sm">
+                          <Label className="text-xs font-bold text-slate-800 flex justify-between">
+                            <span>iPhones Seminovo</span>
+                            {somaIphoneSemi > 0 && <span className="text-[9px] text-blue-600 font-bold uppercase">Soma: {somaIphoneSemi}</span>}
+                          </Label>
+                          <Input
+                            type="number"
+                            value={somaIphoneSemi > 0 ? somaIphoneSemi : metasConfig.iphone_seminovo}
+                            onChange={(e) => setMetasConfig({...metasConfig, iphone_seminovo: parseInt(e.target.value) || 0})}
+                            className={`border-slate-200 ${somaIphoneSemi > 0 ? 'bg-blue-50' : ''}`}
+                            disabled={somaIphoneSemi > 0}
+                          />
+                        </div>
+                        <div className="space-y-3 p-4 border rounded-xl bg-white shadow-sm">
+                          <Label className="text-xs font-bold text-slate-800 flex justify-between">
+                            <span>Androids</span>
+                            {somaAndroid > 0 && <span className="text-[9px] text-blue-600 font-bold uppercase">Soma: {somaAndroid}</span>}
+                          </Label>
+                          <Input
+                            type="number"
+                            value={somaAndroid > 0 ? somaAndroid : metasConfig.android}
+                            onChange={(e) => setMetasConfig({...metasConfig, android: parseInt(e.target.value) || 0})}
+                            className={`border-slate-200 ${somaAndroid > 0 ? 'bg-blue-50' : ''}`}
+                            disabled={somaAndroid > 0}
+                          />
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </TabsContent>
 

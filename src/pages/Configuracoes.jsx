@@ -44,6 +44,7 @@ import { toast } from "sonner";
 import PreviewImpressao from "@/components/PreviewImpressao";
 import EditorTemplateOS from "@/components/configuracoes/EditorTemplateOS";
 import { useConfirm } from '@/contexts/ConfirmContext';
+import { useLoja } from "@/contexts/LojaContext";
 
 // Default configuration object, extracted for reusability and merging logic
 const configuracoesDefault = {
@@ -313,6 +314,7 @@ function mergeWithDefaults(parsed) {
 
 export default function Configuracoes() {
   const { user } = useAuth();
+  const { lojaFiltroId } = useLoja();
   const confirm = useConfirm();
   const queryClient = useQueryClient();
 
@@ -647,8 +649,16 @@ export default function Configuracoes() {
 
 
   const { data: usuarios = [] } = useQuery({
-    queryKey: ['usuarios-base'],
-    queryFn: () => base44.entities.Usuario.list(),
+    queryKey: ['usuarios-base', lojaFiltroId],
+    queryFn: () => {
+      if (!lojaFiltroId) return base44.entities.Usuario.list();
+      return base44.entities.Usuario.filter({
+        or: [
+          { loja_id: lojaFiltroId },
+          { loja_id: null }
+        ]
+      });
+    },
   });
 
   const { data: cargos = [] } = useQuery({
@@ -662,8 +672,16 @@ export default function Configuracoes() {
   });
 
   const { data: usuariosSistema = [] } = useQuery({ // Added for system-specific user data
-    queryKey: ['usuarios-sistema'],
-    queryFn: () => base44.entities.UsuarioSistema.list(),
+    queryKey: ['usuarios-sistema', lojaFiltroId],
+    queryFn: () => {
+      if (!lojaFiltroId) return base44.entities.UsuarioSistema.list();
+      return base44.entities.UsuarioSistema.filter({
+        or: [
+          { loja_id: lojaFiltroId },
+          { loja_id: null }
+        ]
+      });
+    },
   });
 
   const createUsuarioMutation = useMutation({
@@ -806,6 +824,7 @@ export default function Configuracoes() {
           recurso_id: novoCargo.id,
           descricao: `Cargo criado: ${data.nome}`,
           dados_depois: data,
+          loja_id: lojaFiltroId || null,
           data_hora: new Date().toISOString()
         });
       } catch (logError) {
@@ -840,6 +859,7 @@ export default function Configuracoes() {
           descricao: `Cargo alterado: ${data.nome}`,
           dados_antes: cargoAnterior,
           dados_depois: data,
+          loja_id: lojaFiltroId || null,
           data_hora: new Date().toISOString()
         });
       } catch (logError) {
@@ -953,7 +973,7 @@ export default function Configuracoes() {
 
       // Salvar no banco de dados
       try {
-        const configExistente = await base44.entities.Configuracao.filter({ chave: 'sistema_geral' });
+        const configExistente = await base44.entities.Configuracao.filter({ chave: 'sistema_geral', loja_id: lojaFiltroId || null });
         if (configExistente && configExistente.length > 0) {
           await base44.entities.Configuracao.update(configExistente[0].id, {
             chave: 'sistema_geral',
@@ -962,7 +982,8 @@ export default function Configuracoes() {
         } else {
           await base44.entities.Configuracao.create({
             chave: 'sistema_geral',
-            valor: configuracoes
+            valor: configuracoes,
+            loja_id: lojaFiltroId || null
           });
         }
       } catch (error) {
@@ -1021,7 +1042,7 @@ export default function Configuracoes() {
 
       // Salvar no banco de dados
       try {
-        const configExistente = await base44.entities.Configuracao.filter({ chave: 'sistema_geral' });
+        const configExistente = await base44.entities.Configuracao.filter({ chave: 'sistema_geral', loja_id: lojaFiltroId || null });
         if (configExistente && configExistente.length > 0) {
           await base44.entities.Configuracao.update(configExistente[0].id, {
             chave: 'sistema_geral',
@@ -1362,7 +1383,10 @@ export default function Configuracoes() {
     // CRÍTICO: Carregar configurações do banco de dados primeiro (prioridade)
     const loadConfiguracoes = async () => {
       try {
-        const configDB = await base44.entities.Configuracao.filter({ chave: 'sistema_geral' });
+        const configDB = await base44.entities.Configuracao.filter({ 
+          chave: 'sistema_geral',
+          loja_id: lojaFiltroId || null
+        });
         if (configDB && configDB.length > 0 && configDB[0].valor) {
           const parsed = configDB[0].valor;
           const mergedConfigs = mergeWithDefaults(parsed);
@@ -1650,7 +1674,7 @@ export default function Configuracoes() {
 
     // Salvar também no banco de dados para persistência
     try {
-      const configExistente = await base44.entities.Configuracao.filter({ chave: 'sistema_geral' });
+      const configExistente = await base44.entities.Configuracao.filter({ chave: 'sistema_geral', loja_id: lojaFiltroId || null });
       if (configExistente && configExistente.length > 0) {
         await base44.entities.Configuracao.update(configExistente[0].id, {
           chave: 'sistema_geral',
@@ -3561,6 +3585,7 @@ export default function Configuracoes() {
                             <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">E-mail</th>
                             <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Telefone</th>
                             <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Cargo</th>
+                            <th className="text-left px-4 py-3 text-sm font-medium text-slate-600">Loja</th>
                             <th className="text-right px-4 py-3 text-sm font-medium text-slate-600">Ações</th>
                           </tr>
                         </thead>
@@ -3586,6 +3611,14 @@ export default function Configuracoes() {
                                   ) : (
                                     <span className="text-sm text-slate-400">Sem cargo</span>
                                   )}
+                                </td>
+                                <td className="px-4 py-3">
+                                  {(() => {
+                                    const lojaId = usuarioSistema?.loja_id || userBase.loja_id;
+                                    if (!lojaId) return <Badge variant="outline" className="bg-slate-100">Global</Badge>;
+                                    const loja = lojas.find(l => l.id === lojaId);
+                                    return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">{loja?.nome || "Loja"}</Badge>;
+                                  })()}
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   <div className="flex items-center justify-end gap-1">
@@ -4537,7 +4570,10 @@ export default function Configuracoes() {
                   const usuarioSistemaExistente = usuariosSistema.find(us => us.user_id === editingUsuario.id);
                   updateUsuarioBaseMutation.mutate({
                     id: editingUsuario.id,
-                    data: updateData,
+                    data: {
+                      ...updateData,
+                      loja_id: usuarioData.loja_id
+                    },
                     usuarioSistemaId: usuarioSistemaExistente?.id || null
                   });
                 } else {
@@ -4547,6 +4583,7 @@ export default function Configuracoes() {
                     email: usuarioData.email.trim(),
                     telefone: usuarioData.telefone.trim(),
                     cargo_id: usuarioData.cargo_id,
+                    loja_id: usuarioData.loja_id,
                     senha: usuarioData.senha.trim(),
                     codigo_barras_autorizacao: usuarioData.codigo_barras_autorizacao?.trim() || null,
                     senha_autorizacao: usuarioData.senha_autorizacao?.trim() || null,

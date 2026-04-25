@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -11,6 +12,7 @@ import { format, isWithinInterval, parseISO, startOfMonth, startOfDay, endOfDay 
 import DateRangeFilter from "@/components/DateRangeFilter";
 
 export default function Logs() {
+  const { lojaFiltroId } = useLoja();
   const hoje = new Date();
   const [filtro, setFiltro] = useState({
     dataInicio: format(startOfMonth(hoje), 'yyyy-MM-dd'),
@@ -33,10 +35,12 @@ export default function Logs() {
   };
 
   const { data: logs = [] } = useQuery({
-    queryKey: ['logs'],
+    queryKey: ['logs', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.LogAuditoria.list('-data_hora', 200);
+        return lojaFiltroId
+          ? await base44.entities.LogAuditoria.filter({ loja_id: lojaFiltroId }, { order: '-data_hora', limit: 200 })
+          : await base44.entities.LogAuditoria.list('-data_hora', 200);
       } catch {
         return [];
       }
@@ -44,13 +48,17 @@ export default function Logs() {
   });
 
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list('-created_date', 200),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date', limit: 200 })
+      : base44.entities.Venda.list('-created_date', 200),
   });
 
   const { data: caixas = [] } = useQuery({
-    queryKey: ['caixas'],
-    queryFn: () => base44.entities.Caixa.list('-created_date'),
+    queryKey: ['caixas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Caixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.Caixa.list('-created_date'),
   });
 
   // Mapa de numeração sequencial: ordena por data de criação e atribui 1, 2, 3...
@@ -84,10 +92,12 @@ export default function Logs() {
   const logsCaixa = caixas.filter(c => filtrarPorData(c.data_abertura));
 
   const { data: logsDesconto = [] } = useQuery({
-    queryKey: ['logs-desconto'],
+    queryKey: ['logs-desconto', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.LogDesconto.list('-created_date', 200);
+        return lojaFiltroId
+          ? await base44.entities.LogDesconto.filter({ loja_id: lojaFiltroId }, { order: '-created_date', limit: 200 })
+          : await base44.entities.LogDesconto.list('-created_date', 200);
       } catch {
         return [];
       }
@@ -95,10 +105,12 @@ export default function Logs() {
   });
 
   const { data: movimentacoesEstoque = [] } = useQuery({
-    queryKey: ['movimentacoes-estoque'],
+    queryKey: ['movimentacoes-estoque', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.MovimentacaoEstoque.list('-data_movimentacao', 200);
+        return lojaFiltroId
+          ? await base44.entities.MovimentacaoEstoque.filter({ loja_id: lojaFiltroId }, { order: '-data_movimentacao', limit: 200 })
+          : await base44.entities.MovimentacaoEstoque.list('-data_movimentacao', 200);
       } catch {
         return [];
       }

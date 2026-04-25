@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ import { exportToPDF } from "@/utils/pdfExport";
 import DateRangeFilter from "@/components/DateRangeFilter";
 
 export default function RelatorioOS() {
+  const { lojaFiltroId } = useLoja();
   const hoje = new Date();
   const [filtro, setFiltro] = useState({
     dataInicio: format(startOfMonth(hoje), 'yyyy-MM-dd'),
@@ -31,8 +33,10 @@ export default function RelatorioOS() {
   };
 
   const { data: os = [] } = useQuery({
-    queryKey: ['ordens-servico'],
-    queryFn: () => base44.entities.OrdemServico.list(),
+    queryKey: ['ordens-servico', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId })
+      : lojaFiltroId ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId }) : base44.entities.OrdemServico.list(),
   });
 
   const osFiltradas = os.filter(o => filtrarPorData(o.data_entrada));

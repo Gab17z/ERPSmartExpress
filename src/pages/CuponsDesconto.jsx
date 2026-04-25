@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ import { format } from "date-fns";
 import { useConfirm } from '@/contexts/ConfirmContext';
 
 export default function CuponsDesconto() {
+  const { lojaFiltroId } = useLoja();
   const confirm = useConfirm();
   const [dialogCupom, setDialogCupom] = useState(false);
   const [editingCupom, setEditingCupom] = useState(null);
@@ -31,10 +33,12 @@ export default function CuponsDesconto() {
   const queryClient = useQueryClient();
 
   const { data: cupons = [] } = useQuery({
-    queryKey: ['cupons'],
+    queryKey: ['cupons', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.CupomDesconto.list('-created_date');
+        return lojaFiltroId
+          ? await base44.entities.CupomDesconto.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+          : lojaFiltroId ? await base44.entities.CupomDesconto.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : await base44.entities.CupomDesconto.list('-created_date');
       } catch {
         return [];
       }
@@ -43,18 +47,21 @@ export default function CuponsDesconto() {
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      // CRÍTICO: Verificar código duplicado
-      const cuponsExistentes = await base44.entities.CupomDesconto.list();
+      // CRÍTICO: Verificar código duplicado dentro da mesma loja
+      const cuponsExistentes = lojaFiltroId 
+        ? await base44.entities.CupomDesconto.filter({ loja_id: lojaFiltroId })
+        : lojaFiltroId ? await base44.entities.CupomDesconto.filter({ loja_id: lojaFiltroId }) : await base44.entities.CupomDesconto.list();
+        
       const codigoDuplicado = cuponsExistentes.find(
         c => c.codigo?.toUpperCase() === data.codigo?.toUpperCase()
       );
       if (codigoDuplicado) {
         throw new Error("Já existe um cupom com este código!");
       }
-      return base44.entities.CupomDesconto.create(data);
+      return base44.entities.CupomDesconto.create({ ...data, loja_id: lojaFiltroId || null });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cupons'] });
+      queryClient.invalidateQueries({ queryKey: ['cupons', lojaFiltroId] });
       toast.success("Cupom criado!");
       setDialogCupom(false);
       resetForm();
@@ -67,7 +74,7 @@ export default function CuponsDesconto() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.CupomDesconto.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cupons'] });
+      queryClient.invalidateQueries({ queryKey: ['cupons', lojaFiltroId] });
       toast.success("Cupom atualizado!");
       setDialogCupom(false);
       resetForm();
@@ -77,7 +84,7 @@ export default function CuponsDesconto() {
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.CupomDesconto.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cupons'] });
+      queryClient.invalidateQueries({ queryKey: ['cupons', lojaFiltroId] });
       toast.success("Cupom excluído!");
     },
   });

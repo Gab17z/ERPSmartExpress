@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import { Plus, Edit, ArrowLeftRight, Landmark } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ContasBancarias() {
+  const { lojaFiltroId } = useLoja();
   const { user } = useAuth();
   const [dialogConta, setDialogConta] = useState(false);
   const [dialogTransferencia, setDialogTransferencia] = useState(false);
@@ -40,10 +42,12 @@ export default function ContasBancarias() {
   const queryClient = useQueryClient();
 
   const { data: contas = [] } = useQuery({
-    queryKey: ['contas-bancarias'],
+    queryKey: ['contas-bancarias', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.ContaBancaria.list('nome');
+        return lojaFiltroId
+          ? await base44.entities.ContaBancaria.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
+          : lojaFiltroId ? await base44.entities.ContaBancaria.filter({ loja_id: lojaFiltroId }, { order: 'nome' }) : await base44.entities.ContaBancaria.list('nome');
       } catch {
         return [];
       }
@@ -55,7 +59,8 @@ export default function ContasBancarias() {
     mutationFn: (data) => base44.entities.ContaBancaria.create({
       ...data,
       saldo_inicial: parseValorBRL(data.saldo_inicial) || 0,
-      saldo_atual: parseValorBRL(data.saldo_inicial) || 0
+      saldo_atual: parseValorBRL(data.saldo_inicial) || 0,
+      loja_id: lojaFiltroId || null
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contas-bancarias'] });
@@ -125,7 +130,8 @@ export default function ContasBancarias() {
         conta_destino_nome: contaDestino.nome,
         valor: valor,
         data_transferencia: new Date().toISOString(),
-        responsavel: user?.nome
+        responsavel: user?.nome,
+        loja_id: lojaFiltroId || null
       });
     },
     onSuccess: () => {

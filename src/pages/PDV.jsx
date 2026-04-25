@@ -65,7 +65,7 @@ export default function PDV() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const { lojaFiltroId } = useLoja();
+  const { lojaFiltroId, loadingLoja } = useLoja();
   const searchRef = useRef(null);
   const inputBuscaRef = useRef(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -116,10 +116,11 @@ export default function PDV() {
   const { data: produtos = [], isLoading: loadingProdutos } = useQuery({
     queryKey: ['produtos', lojaFiltroId],
     queryFn: async () => {
-      if (lojaFiltroId) {
-        return await base44.entities.Produto.filter({ loja_id: lojaFiltroId }, { order: 'nome' });
+      // SEGURANÇA: Se não houver loja selecionada, não mostrar nenhum produto para evitar "mistura"
+      if (!lojaFiltroId) {
+        return [];
       }
-      return await base44.entities.Produto.list('nome');
+      return await base44.entities.Produto.filter({ loja_id: lojaFiltroId }, { order: 'nome' });
     },
   });
 
@@ -131,25 +132,30 @@ export default function PDV() {
     staleTime: 0, // Sempre considera os dados desatualizados para buscar frescos
   });
 
-  const { data: caixas = [] } = useQuery({
+  const { data: caixas = [], isLoading: loadingCaixas, isFetching: fetchingCaixas } = useQuery({
     queryKey: ['caixas', lojaFiltroId],
-    queryFn: () => lojaFiltroId
-      ? base44.entities.Caixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-      : base44.entities.Caixa.list('-created_date', 1),
+    queryFn: () => {
+      if (!lojaFiltroId) return [];
+      return base44.entities.Caixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' });
+    },
+    staleTime: 0,
+    refetchInterval: 30000, // Verifica status do caixa a cada 30 segundos
   });
 
   // Carregar usuários do sistema para autenticação de vendedor
   const { data: usuariosSistema = [] } = useQuery({
     queryKey: ['usuarios_sistema', lojaFiltroId],
     queryFn: () => lojaFiltroId
-      ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId })
+      ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
       : base44.entities.UsuarioSistema.list('nome'),
   });
 
   // Vendas recentes para reimpressão (carrega só quando dialog aberto)
   const { data: vendasRecentes = [] } = useQuery({
-    queryKey: ['vendas-reimpressao'],
-    queryFn: () => base44.entities.Venda.list('-created_date', 30),
+    queryKey: ['vendas-reimpressao', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date', limit: 30 })
+      : base44.entities.Venda.list('-created_date', 30),
     enabled: dialogReimprimir,
   });
 
@@ -309,8 +315,10 @@ export default function PDV() {
         }
       }
 
-      // CORREÇÃO: Buscar dados FRESCOS do banco para evitar cache stale
-      const produtosAtualizados = await base44.entities.Produto.list('nome');
+      // CORREÇÃO: Buscar dados FRESCOS do banco para evitar cache stale (isolado por loja)
+      const produtosAtualizados = lojaFiltroId 
+        ? await base44.entities.Produto.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
+        : await base44.entities.Produto.list('nome');
       const produtosAtualizadosMap = new Map(produtosAtualizados.map(p => [p.id, p]));
 
       // CRÍTICO: Validação final de estoque com dados frescos do banco
@@ -704,7 +712,7 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
     }
 
     try {
-      const usuarios = await base44.entities.UsuarioSistema.list();
+      const usuarios = lojaFiltroId ? await base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId }) : await base44.entities.UsuarioSistema.list();
       const usuarioAutorizador = usuarios.find(u => u.codigo_barras_autorizacao === codigoBarrasDigitado);
 
       if (!usuarioAutorizador) {
@@ -819,7 +827,7 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
 
     setValidandoCupom(true);
     try {
-      const cupons = await base44.entities.CupomDesconto.list();
+      const cupons = lojaFiltroId ? await base44.entities.CupomDesconto.filter({ loja_id: lojaFiltroId }) : await base44.entities.CupomDesconto.list();
       const cupom = cupons.find(c =>
         c.codigo?.toUpperCase() === codigoCupom.toUpperCase().trim() &&
         c.ativo !== false
@@ -917,7 +925,7 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
     setValidandoVendedor(true);
     try {
       // CORREÇÃO: Buscar dados FRESCOS do banco para evitar nomes desatualizados pelo cache
-      const usuariosFrescos = await base44.entities.UsuarioSistema.list('nome');
+      const usuariosFrescos = lojaFiltroId ? await base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId }, { order: 'nome' }) : await base44.entities.UsuarioSistema.list('nome');
 
       // Buscar TODOS os vendedores que batem com a senha (para detectar duplicatas)
       const vendedoresComSenha = usuariosFrescos.filter(
@@ -1051,6 +1059,8 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
         troco: Math.max(0, trocoCalculado),
         data_venda: new Date().toISOString(),
         status: "finalizada",
+        created_by_id: user?.id || null,
+        created_by: user?.nome || null,
         // Campos de OS: só incluídos quando há uma OS vinculada para evitar erro PGRST204
         ...(osVinculada ? { os_id: osVinculada.id } : {}),
       };
@@ -1112,6 +1122,37 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
       });
     }
   };
+
+  // SEGURANÇA: Se não houver loja selecionada, mostrar mensagem de bloqueio
+  if (!lojaFiltroId) {
+    return (
+      <div className="h-[calc(100vh-64px)] flex items-center justify-center bg-slate-100">
+        <Card className="max-w-lg w-full mx-4 border-2 border-orange-200 shadow-xl">
+          <CardContent className="p-8 text-center">
+            <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <AlertTriangle className="w-10 h-10 text-orange-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-4">Loja Não Selecionada</h2>
+            <p className="text-slate-500 mb-8 text-lg">
+              Para operar o PDV, você precisa selecionar uma loja ativa no menu superior.
+              <br/><br/>
+              <span className="text-sm font-semibold text-orange-700">Isso garante que as vendas e o estoque sejam processados na unidade correta.</span>
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // SEGURANÇA: Se estiver carregando dados da loja ou do caixa, mostrar loading para evitar o "flash" de caixa fechado
+  if (loadingLoja || (loadingCaixas && caixas.length === 0)) {
+    return (
+      <div className="h-[calc(100vh-64px)] flex flex-col items-center justify-center bg-slate-100">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+        <p className="text-slate-600 font-medium">Verificando status do caixa...</p>
+      </div>
+    );
+  }
 
   // Se o caixa estiver fechado, mostrar mensagem de bloqueio
   if (!caixaAberto) {

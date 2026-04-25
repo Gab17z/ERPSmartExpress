@@ -85,19 +85,27 @@ export default function Caixa() {
 
   const { data: caixas = [], isLoading } = useQuery({
     queryKey: ['caixas', lojaFiltroId],
-    queryFn: () => base44.entities.Caixa.list('-created_date'),
+    queryFn: () => {
+      if (!lojaFiltroId) return [];
+      return base44.entities.Caixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' });
+    },
   });
 
   const { data: vendas = [] } = useQuery({
     queryKey: ['vendas', lojaFiltroId],
-    queryFn: () => base44.entities.Venda.list('-created_date'),
+    queryFn: () => {
+      if (!lojaFiltroId) return [];
+      return base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' });
+    },
+    refetchInterval: 30000
   });
 
   const { data: movimentacoesCaixa = [] } = useQuery({
-    queryKey: ['movimentacoes-caixa'],
+    queryKey: ['movimentacoes-caixa', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.MovimentacaoCaixa.list('-created_date');
+        if (!lojaFiltroId) return [];
+        return await base44.entities.MovimentacaoCaixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' });
       } catch (e) {
         console.error("Erro ao buscar movimentações do caixa:", e);
         return [];
@@ -107,8 +115,10 @@ export default function Caixa() {
   });
 
   const { data: usuariosSistema = [] } = useQuery({
-    queryKey: ['usuarios_sistema_caixa'],
-    queryFn: () => base44.entities.UsuarioSistema.list('nome'),
+    queryKey: ['usuarios_sistema_caixa', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId })
+      : lojaFiltroId ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId }, { order: 'nome' }) : base44.entities.UsuarioSistema.list('nome'),
   });
 
   const caixaAberto = caixas.find(c => c.status === 'aberto');
@@ -150,8 +160,9 @@ export default function Caixa() {
 
   const abrirCaixaMutation = useMutation({
     mutationFn: async (valorInicial) => {
-      // CORREÇÃO: Buscar caixas FRESCOS do banco para evitar race condition
-      const caixasAtuais = await base44.entities.Caixa.list('-created_date');
+      // SEGURANÇA: Exigir loja ativa para abrir caixa, evitando race condition multi-loja
+      if (!lojaFiltroId) throw new Error('Nenhuma loja ativa. Selecione uma loja antes de abrir o caixa.');
+      const caixasAtuais = await base44.entities.Caixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' });
       const caixaAbertoExistente = caixasAtuais.find(c => c.status === 'aberto');
 
       if (caixaAbertoExistente) {
@@ -185,7 +196,7 @@ export default function Caixa() {
       });
     },
     onSuccess: (caixa) => {
-      queryClient.invalidateQueries({ queryKey: ['caixas'] });
+      queryClient.invalidateQueries({ queryKey: ['caixas', lojaFiltroId] });
       toast.success("Caixa aberto com sucesso!");
       setDialogAbertura(false);
       setValorInicial(0);
@@ -238,7 +249,8 @@ export default function Caixa() {
         valor: valorMovimentacao,
         descricao: descricaoMovimentacao + (aprovado ? ` | Aprovado por: ${user?.nome || 'Gerente'}` : ''),
         usuario_id: user?.id || null,
-        usuario_nome: user?.nome || "Usuário" // Campo extra para exibição
+        usuario_nome: user?.nome || "Usuário", // Campo extra para exibição
+        loja_id: lojaFiltroId || null
       };
 
       const movimentacao = await base44.entities.MovimentacaoCaixa.create(movimentacaoData);
@@ -252,7 +264,7 @@ export default function Caixa() {
       };
     },
     onSuccess: (movimentacao) => {
-      queryClient.invalidateQueries({ queryKey: ['caixas'] });
+      queryClient.invalidateQueries({ queryKey: ['caixas', lojaFiltroId] });
       queryClient.invalidateQueries({ queryKey: ['movimentacoes-caixa'] });
       toast.success("Sangria registrada com sucesso!");
 
@@ -299,7 +311,8 @@ export default function Caixa() {
         valor: valorMovimentacao,
         descricao: descricaoMovimentacao,
         usuario_id: user?.id || null,
-        usuario_nome: user?.nome || "Usuário" // Campo extra para exibição
+        usuario_nome: user?.nome || "Usuário", // Campo extra para exibição
+        loja_id: lojaFiltroId || null
       };
 
       const movimentacao = await base44.entities.MovimentacaoCaixa.create(movimentacaoData);
@@ -312,7 +325,7 @@ export default function Caixa() {
       };
     },
     onSuccess: (movimentacao) => {
-      queryClient.invalidateQueries({ queryKey: ['caixas'] });
+      queryClient.invalidateQueries({ queryKey: ['caixas', lojaFiltroId] });
       queryClient.invalidateQueries({ queryKey: ['movimentacoes-caixa'] });
       toast.success("Suprimento registrado com sucesso!");
 
@@ -335,7 +348,7 @@ export default function Caixa() {
       }
 
       // CORREÇÃO: Buscar vendas frescas do banco
-      const vendasAtuais = await base44.entities.Venda.list('-created_date');
+      const vendasAtuais = lojaFiltroId ? await base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : await base44.entities.Venda.list('-created_date');
       const vendasDoCaixa = vendasAtuais.filter(v =>
         v.caixa_id === caixaAberto.id && v.status === 'finalizada'
       );
@@ -343,7 +356,7 @@ export default function Caixa() {
       // CORREÇÃO: Buscar movimentações frescas do banco
       let movimentacoesAtuais = [];
       try {
-        movimentacoesAtuais = await base44.entities.MovimentacaoCaixa.list('-created_date');
+        movimentacoesAtuais = lojaFiltroId ? await base44.entities.MovimentacaoCaixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : await base44.entities.MovimentacaoCaixa.list('-created_date');
       } catch (e) {
         console.error("Erro ao buscar movimentações:", e);
       }
@@ -415,7 +428,7 @@ export default function Caixa() {
       return { caixa: caixaAtualizado, vendas: vendasDoCaixa, movimentacoes: movsDoCaixa };
     },
     onSuccess: ({ caixa: caixaFechado, vendas: vendasFechamento, movimentacoes: movsFechamento }) => {
-      queryClient.invalidateQueries({ queryKey: ['caixas'] });
+      queryClient.invalidateQueries({ queryKey: ['caixas', lojaFiltroId] });
       toast.success("Caixa fechado com sucesso!");
       setDialogFechamento(false);
       setDialogAprovacaoDiferenca(false);
