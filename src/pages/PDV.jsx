@@ -1151,14 +1151,25 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
         ...(osVinculada ? { os_id: osVinculada.id } : {}),
       };
 
-      // Se tem cupom aplicado, incrementar uso_atual após a venda
+      // F03 FIX: Usar RPC atômica para incrementar uso do cupom
+      // Elimina race condition onde 2 clientes usam o mesmo cupom simultaneamente
       if (cupomAplicado) {
         try {
-          await base44.entities.CupomDesconto.update(cupomAplicado.id, {
-            uso_atual: (cupomAplicado.uso_atual || 0) + 1
-          });
+          const { data: cupomResult, error: cupomRPCError } = await supabase
+            .rpc('usar_cupom', { p_cupom_id: cupomAplicado.id });
+
+          if (cupomRPCError) {
+            // Fallback: UPDATE direto (sujeito a race condition)
+            await base44.entities.CupomDesconto.update(cupomAplicado.id, {
+              uso_atual: (cupomAplicado.uso_atual || 0) + 1
+            });
+          } else if (cupomResult === false) {
+            // A RPC retorna false quando o cupom atingiu o limite enquanto processávamos
+            throw new Error('Cupom atingiu o limite máximo de uso durante o processamento. Tente outro cupom.');
+          }
         } catch (err) {
-          console.error("Erro ao atualizar uso do cupom:", err);
+          if (err.message?.includes('Cupom')) throw err; // Re-lança erros de negócio
+          console.error("Erro ao atualizar uso do cupom:", err?.code);
         }
       }
 

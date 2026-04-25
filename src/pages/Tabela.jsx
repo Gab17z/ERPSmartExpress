@@ -365,7 +365,10 @@ export default function Tabela() {
   const [textoFornecedor, setTextoFornecedor] = useState("");
   const [itensParsed, setItensParsed] = useState(null);
   const [modoIA, setModoIA] = useState(false);
-  const [chaveIA, setChaveIA] = useState(() => localStorage.getItem("anthropic_key") || import.meta.env.VITE_ANTHROPIC_KEY || "");
+  // S03 FIX: A chave NÃO é mais salva no localStorage (risco de segurança)
+  // Usar apenas variável de ambiente VITE_ANTHROPIC_KEY no arquivo .env
+  const [chaveIA] = useState(() => import.meta.env.VITE_ANTHROPIC_KEY || "");
+  const temChaveIA = Boolean(chaveIA);
   const [iaCarregando, setIaCarregando] = useState(false);
 
   const { data: configs = [], isLoading } = useQuery({
@@ -441,8 +444,8 @@ export default function Tabela() {
   const processarTexto = () => setItensParsed(parseSupplierText(textoFornecedor));
 
   const processarComIA = async () => {
-    if (!chaveIA.trim()) { toast.error("Informe a chave da IA."); return; }
-    localStorage.setItem("anthropic_key", chaveIA.trim());
+    if (!chaveIA.trim()) { toast.error("Configure VITE_ANTHROPIC_KEY no arquivo .env do projeto."); return; }
+    // S03 FIX: Não salvar a chave no localStorage
     setIaCarregando(true);
     try {
       const resultado = await parseWithAI(textoFornecedor, chaveIA.trim());
@@ -713,21 +716,17 @@ export default function Tabela() {
                     </p>
                   </div>
 
-                  {!chaveIA && (
+                  {!temChaveIA && (
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-slate-600">
-                        Chave da API Anthropic (salva no navegador)
-                      </label>
-                      <Input
-                        type="password"
-                        placeholder="sk-ant-..."
-                        value={chaveIA}
-                        onChange={(e) => setChaveIA(e.target.value)}
-                        className="font-mono text-sm"
-                      />
-                      <p className="text-xs text-slate-400">
-                        Obtenha em console.anthropic.com — ou adicione VITE_ANTHROPIC_KEY no .env
-                      </p>
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <p className="text-xs font-semibold text-amber-700">⚠️ Chave de IA não configurada</p>
+                        <p className="text-xs text-amber-600 mt-1">
+                          Adicione <code className="bg-amber-100 px-1 rounded">VITE_ANTHROPIC_KEY=sk-ant-...</code> no arquivo <code className="bg-amber-100 px-1 rounded">.env</code> do projeto e reinicie o servidor.
+                        </p>
+                        <p className="text-xs text-amber-500 mt-1">
+                          Obtenha em <strong>console.anthropic.com</strong>
+                        </p>
+                      </div>
                     </div>
                   )}
 
