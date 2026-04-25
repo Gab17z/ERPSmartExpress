@@ -692,6 +692,7 @@ export default function Configuracoes() {
       // Criar o Usuario
       const novoUsuario = await base44.entities.Usuario.create({
         ...usuarioData,
+        loja_id: usuarioData.loja_id === "global" ? null : (usuarioData.loja_id || null),
         cargo_id: cargo_id || null
       });
 
@@ -735,9 +736,13 @@ export default function Configuracoes() {
       // Separar dados do Usuario e do UsuarioSistema
       const { codigo_barras_autorizacao, senha_autorizacao, cargo_id, ...usuarioData } = data;
 
+      // Sanitizar loja_id
+      const lojaIdSanitizado = usuarioData.loja_id === "global" ? null : (usuarioData.loja_id || null);
+
       // Atualizar o Usuario
       const usuarioAtualizado = await base44.entities.Usuario.update(id, {
         ...usuarioData,
+        loja_id: lojaIdSanitizado,
         cargo_id: cargo_id || null
       });
 
@@ -751,7 +756,7 @@ export default function Configuracoes() {
           senha_autorizacao: senha_autorizacao || null,
           cargo_id: cargo_id || null,
           cargo_nome: cargo_id ? cargos.find(c => c.id === cargo_id)?.nome : null,
-          loja_id: usuarioData.loja_id === "global" ? null : (usuarioData.loja_id || null)
+          loja_id: lojaIdSanitizado
         });
       } else {
         // Criar novo UsuarioSistema se não existe
@@ -762,7 +767,7 @@ export default function Configuracoes() {
           nome: usuarioAtualizado.nome,
           cargo_id: cargo_id || null,
           cargo_nome: cargo?.nome || null,
-          loja_id: usuarioData.loja_id === "global" ? null : (usuarioData.loja_id || null),
+          loja_id: lojaIdSanitizado,
           codigo_barras_autorizacao: codigo_barras_autorizacao || null,
           senha_autorizacao: senha_autorizacao || null,
           ativo: true
