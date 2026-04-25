@@ -74,17 +74,21 @@ export default function Dashboard() {
   const { data: vendas = [], isLoading: loadingVendas } = useQuery({
     queryKey: ['vendas', lojaFiltroId],
     queryFn: () => {
-      // P01 FIX: Filtrar por data para não carregar anos de histórico a cada abertura
-      // O Dashboard sempre mostra no máximo 1 ano para trás
-      const umAnoAtras = new Date();
-      umAnoAtras.setFullYear(umAnoAtras.getFullYear() - 1);
-      const dataInicio = umAnoAtras.toISOString().split('T')[0];
-      
+      // EGRESS FIX: Filtrar só os últimos 30 dias no banco — Dashboard não precisa de histórico
+      const trintaDiasAtras = new Date();
+      trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
+      const dataInicio = trintaDiasAtras.toISOString();
+
       return lojaFiltroId
-        ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-        : base44.entities.Venda.list('-created_date');
+        ? base44.entities.Venda.filter(
+            { loja_id: lojaFiltroId, created_date: { gte: dataInicio } },
+            { order: '-created_date' }
+          )
+        : base44.entities.Venda.filter(
+            { created_date: { gte: dataInicio } },
+            { order: '-created_date' }
+          );
     },
-    // P01 FIX: Dashboard atualiza a cada 5 minutos, não a cada troca de aba
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnMount: true,
@@ -95,6 +99,9 @@ export default function Dashboard() {
     queryFn: () => lojaFiltroId
       ? base44.entities.Produto.filter({ loja_id: lojaFiltroId })
       : base44.entities.Produto.list(),
+    // EGRESS FIX: Produtos não mudam com frequência — cache de 10 minutos
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: clientes = [], isLoading: loadingClientes } = useQuery({
@@ -102,15 +109,32 @@ export default function Dashboard() {
     queryFn: () => lojaFiltroId
       ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
       : base44.entities.Cliente.list('-created_date'),
+    // EGRESS FIX: Clientes raramente mudam — cache de 10 minutos no Dashboard
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: ordensServico = [], isLoading: loadingOS } = useQuery({
     queryKey: ['ordens-servico', lojaFiltroId],
-    queryFn: () => lojaFiltroId
-      ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-      : base44.entities.OrdemServico.list('-created_date'),
-    refetchOnWindowFocus: true,
-    refetchOnMount: 'always'
+    queryFn: () => {
+      // EGRESS FIX: Só OS dos últimos 30 dias — Dashboard mostra status atual, não histórico
+      const trintaDiasAtras = new Date();
+      trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
+      const dataInicio = trintaDiasAtras.toISOString();
+
+      return lojaFiltroId
+        ? base44.entities.OrdemServico.filter(
+            { loja_id: lojaFiltroId, created_date: { gte: dataInicio } },
+            { order: '-created_date' }
+          )
+        : base44.entities.OrdemServico.filter(
+            { created_date: { gte: dataInicio } },
+            { order: '-created_date' }
+          );
+    },
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
   });
 
   const { data: caixas = [] } = useQuery({
@@ -145,13 +169,20 @@ export default function Dashboard() {
     queryKey: ['comissoes', lojaFiltroId],
     queryFn: async () => {
       try {
-        // Removido filtro de loja_id pois a coluna não existe
-        return await base44.entities.Comissao.list();
-      } catch (error) {
-        console.error("Erro ao carregar comissões:", error);
+        // EGRESS FIX: Só comissões dos últimos 30 dias
+        const trintaDiasAtras = new Date();
+        trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
+        const dataInicio = trintaDiasAtras.toISOString();
+        return await base44.entities.Comissao.filter(
+          { created_date: { gte: dataInicio } },
+          { order: '-created_date' }
+        );
+      } catch {
         return [];
       }
     },
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: metasConfigDb } = useQuery({
@@ -201,12 +232,20 @@ export default function Dashboard() {
     queryKey: ['devolucoes', lojaFiltroId],
     queryFn: async () => {
       try {
-        // Removido filtro de loja_id pois a coluna não existe
-        return await base44.entities.Devolucao.list();
+        // EGRESS FIX: Só devoluções dos últimos 30 dias
+        const trintaDiasAtras = new Date();
+        trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
+        const dataInicio = trintaDiasAtras.toISOString();
+        return await base44.entities.Devolucao.filter(
+          { created_date: { gte: dataInicio } },
+          { order: '-created_date' }
+        );
       } catch {
         return [];
       }
     },
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Mapear devoluções aprovadas por venda para abatimento financeiro
