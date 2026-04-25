@@ -135,8 +135,11 @@ export default function PDV() {
   const { data: caixas = [], isLoading: loadingCaixas, isFetching: fetchingCaixas } = useQuery({
     queryKey: ['caixas', lojaFiltroId],
     queryFn: () => {
-      if (!lojaFiltroId) return [];
-      return base44.entities.Caixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' });
+      if (lojaFiltroId) {
+        return base44.entities.Caixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' });
+      }
+      // Se for admin sem filtro, busca em todos os caixas para não bloquear a visão
+      return base44.entities.Caixa.list('-created_date');
     },
     staleTime: 0,
     refetchInterval: 30000, // Verifica status do caixa a cada 30 segundos
