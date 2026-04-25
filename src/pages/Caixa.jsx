@@ -86,8 +86,11 @@ export default function Caixa() {
   const { data: caixas = [], isLoading } = useQuery({
     queryKey: ['caixas', lojaFiltroId],
     queryFn: () => {
-      if (!lojaFiltroId) return [];
-      return base44.entities.Caixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' });
+      if (lojaFiltroId) {
+        return base44.entities.Caixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' });
+      }
+      // Se for admin sem filtro, lista todos os caixas para não "trancar" o sistema
+      return base44.entities.Caixa.list('-created_date');
     },
   });
 
