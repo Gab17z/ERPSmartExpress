@@ -85,15 +85,14 @@ export default function Caixa() {
 
   const { data: caixas = [], isLoading } = useQuery({
     queryKey: ['caixas', lojaFiltroId],
-    queryFn: () => {
-      if (lojaFiltroId) {
-        return base44.entities.Caixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' });
-      }
-      // Se for admin sem filtro, lista todos os caixas para não "trancar" o sistema
-      return base44.entities.Caixa.list('-created_date');
-    },
+    queryFn: () => base44.entities.Caixa.list('-created_date'),
   });
 
+  // Procurar caixa aberto: da loja selecionada OU um caixa global (null) aberto por admin
+  const caixaAberto = caixas.find(c => 
+    c.status === 'aberto' && 
+    (c.loja_id === lojaFiltroId || c.loja_id === null)
+  );
   const { data: vendas = [] } = useQuery({
     queryKey: ['vendas', lojaFiltroId],
     queryFn: () => {
