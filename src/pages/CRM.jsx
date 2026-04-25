@@ -61,7 +61,7 @@ export default function CRM() {
     queryKey: ['leads', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.LeadCRM.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-      : lojaFiltroId ? base44.entities.LeadCRM.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : base44.entities.LeadCRM.list('-created_date'),
+      : base44.entities.LeadCRM.list('-created_date'),
   });
 
   const createMutation = useMutation({

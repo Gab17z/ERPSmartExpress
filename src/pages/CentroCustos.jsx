@@ -42,7 +42,7 @@ export default function CentroCustos() {
       try {
         return lojaFiltroId
           ? await base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-          : lojaFiltroId ? await base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : await base44.entities.ContaPagar.list('-created_date');
+          : await base44.entities.ContaPagar.list('-created_date');
       } catch {
         return [];
       }
@@ -55,7 +55,7 @@ export default function CentroCustos() {
       try {
         return lojaFiltroId
           ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-          : lojaFiltroId ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : await base44.entities.Comissao.list('-created_date');
+          : await base44.entities.Comissao.list('-created_date');
       } catch {
         return [];
       }

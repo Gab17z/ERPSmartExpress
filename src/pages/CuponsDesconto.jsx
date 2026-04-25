@@ -38,7 +38,7 @@ export default function CuponsDesconto() {
       try {
         return lojaFiltroId
           ? await base44.entities.CupomDesconto.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-          : lojaFiltroId ? await base44.entities.CupomDesconto.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : await base44.entities.CupomDesconto.list('-created_date');
+          : await base44.entities.CupomDesconto.list('-created_date');
       } catch {
         return [];
       }
@@ -50,7 +50,7 @@ export default function CuponsDesconto() {
       // CRÍTICO: Verificar código duplicado dentro da mesma loja
       const cuponsExistentes = lojaFiltroId 
         ? await base44.entities.CupomDesconto.filter({ loja_id: lojaFiltroId })
-        : lojaFiltroId ? await base44.entities.CupomDesconto.filter({ loja_id: lojaFiltroId }) : await base44.entities.CupomDesconto.list();
+        : await base44.entities.CupomDesconto.list();
         
       const codigoDuplicado = cuponsExistentes.find(
         c => c.codigo?.toUpperCase() === data.codigo?.toUpperCase()

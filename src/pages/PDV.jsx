@@ -83,6 +83,8 @@ export default function PDV() {
   const [fullscreen, setFullscreen] = useState(false);
   const [dialogSenhaDesconto, setDialogSenhaDesconto] = useState(false);
   const [codigoBarrasDigitado, setCodigoBarrasDigitado] = useState("");
+  // S04/F02 FIX: Configurações buscadas do banco, não do localStorage
+  // localStorage ainda é usado para preferências não críticas (som, impressão)
   const [configuracoes, setConfiguracoes] = useState(null);
   const [descontoTemporario, setDescontoTemporario] = useState(0);
   const barcodeInputRef = useRef(null);
@@ -161,7 +163,45 @@ export default function PDV() {
       : base44.entities.UsuarioSistema.list('nome'),
   });
 
-  // Vendas recentes para reimpressão (carrega só quando dialog aberto)
+  // S04/F02 FIX: Buscar configurações críticas DO BANCO, não do localStorage
+  // Isso garante que mudanças feitas pelo admin sejam refletidas imediatamente em todos os caixas
+  const { data: configuracaoDB } = useQuery({
+    queryKey: ['configuracao', lojaFiltroId],
+    queryFn: async () => {
+      try {
+        const configs = lojaFiltroId
+          ? await base44.entities.Configuracao.filter({ loja_id: lojaFiltroId })
+          : await base44.entities.Configuracao.list();
+        return configs?.[0] || null;
+      } catch {
+        return null;
+      }
+    },
+    // Configurações são atualizadas a cada 5 minutos
+    staleTime: 5 * 60 * 1000,
+    refetchOnMount: true,
+  });
+
+  // Mesclar: banco tem prioridade sobre localStorage para campos críticos
+  const configERP = useMemo(() => {
+    const local = configuracoes || {};
+    const db = configuracaoDB || {};
+    return {
+      ...local,
+      pdv: {
+        ...(local?.pdv || {}),
+        // F02: Taxa de comissão SEMPRE vem do banco se disponível
+        percentual_comissao: db?.percentual_comissao ?? local?.pdv?.percentual_comissao ?? 5,
+        // S04: Limite de desconto SEMPRE vem do banco se disponível
+        solicitar_senha_desconto_acima: db?.desconto_maximo_sem_senha ?? local?.pdv?.solicitar_senha_desconto_acima ?? 10,
+        exigir_senha_desconto: db?.exigir_senha_desconto ?? local?.pdv?.exigir_senha_desconto ?? true,
+        // Preferências não críticas continuam do localStorage
+        impressao_automatica_cupom: local?.pdv?.impressao_automatica_cupom,
+        som_ao_adicionar: local?.pdv?.som_ao_adicionar,
+      }
+    };
+  }, [configuracoes, configuracaoDB]);
+
   const { data: vendasRecentes = [] } = useQuery({
     queryKey: ['vendas-reimpressao', lojaFiltroId],
     queryFn: () => lojaFiltroId
@@ -176,22 +216,15 @@ export default function PDV() {
       try {
         const config = JSON.parse(configSalva);
         setConfiguracoes(config);
-
-        // Tela cheia automática ao abrir o PDV - Silenciado para evitar erro de gesto do navegador
         if (config?.pdv?.tela_cheia_automatica && !document.fullscreenElement) {
           console.log("PDV: Tela cheia automática habilitada. Aguardando interação do usuário.");
         }
-      } catch (error) {
-        console.error("Erro ao carregar configurações:", error);
+      } catch {
+        // config inválida no localStorage — ignora silenciosamente
       }
     }
-
-
-    // Focar no campo de busca após carregar
     setTimeout(() => {
-      if (inputBuscaRef.current) {
-        inputBuscaRef.current.focus();
-      }
+      if (inputBuscaRef.current) inputBuscaRef.current.focus();
     }, 300);
   }, []);
 
@@ -420,10 +453,9 @@ export default function PDV() {
         console.warn("Aviso: Não foi possível registrar log de movimentação de estoque:", e?.code);
       }
 
-      // CRÍTICO: Gerar comissão usando configurações ou padrão 5%
+      // F02 FIX: Usar taxa de comissão do banco (via configERP) em vez de localStorage
       try {
-        const config = JSON.parse(localStorage.getItem('configuracoes_erp') || '{}');
-        const percentualComissao = config?.pdv?.percentual_comissao || 5;
+        const percentualComissao = configERP?.pdv?.percentual_comissao || 5;
         const valorComissao = (venda.valor_total * percentualComissao) / 100;
 
         await base44.entities.Comissao.create({
@@ -808,8 +840,9 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
       setDescontoPercentual(percentualLimitado);
       return true;
     }
-    const limiteDesconto = configuracoes?.pdv?.solicitar_senha_desconto_acima || 10;
-    const exigeSenha = configuracoes?.pdv?.exigir_senha_desconto !== false;
+    // S04 FIX: Limite de desconto vem de configERP (banco tem prioridade sobre localStorage)
+    const limiteDesconto = configERP?.pdv?.solicitar_senha_desconto_acima || 10;
+    const exigeSenha = configERP?.pdv?.exigir_senha_desconto !== false;
 
     if (exigeSenha && percentualLimitado > limiteDesconto) {
       setDescontoTemporario(percentualLimitado);
@@ -1921,8 +1954,8 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
                 R$ {((calcularSubtotal() * descontoTemporario) / 100).toFixed(2)})
               </p>
               <p className="text-slate-600">
-                Limite sem autorização: <strong className="text-orange-600">{configuracoes?.pdv?.solicitar_senha_desconto_acima || 10}%</strong> (
-                R$ {((calcularSubtotal() * (configuracoes?.pdv?.solicitar_senha_desconto_acima || 10)) / 100).toFixed(2)})
+                Limite sem autorização: <strong className="text-orange-600">{configERP?.pdv?.solicitar_senha_desconto_acima || 10}%</strong> (
+                R$ {((calcularSubtotal() * (configERP?.pdv?.solicitar_senha_desconto_acima || 10)) / 100).toFixed(2)})
               </p>
             </div>
           </div>

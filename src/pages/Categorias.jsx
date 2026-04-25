@@ -55,7 +55,7 @@ export default function Categorias() {
     queryKey: ['categorias', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Categoria.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
-      : lojaFiltroId ? base44.entities.Categoria.filter({ loja_id: lojaFiltroId }, { order: 'nome' }) : base44.entities.Categoria.list('nome'),
+      : base44.entities.Categoria.list('nome'),
   });
 
   const createMutation = useMutation({

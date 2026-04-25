@@ -123,14 +123,19 @@ export default function Clientes() {
     queryKey: ['clientes', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-      : lojaFiltroId ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : base44.entities.Cliente.list('-created_date'),
+      : base44.entities.Cliente.list('-created_date'),
+    // Código usa paginação frontend (ITENS_POR_PAGINA=20), staleTime 5min reduz requests
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: vendas = [] } = useQuery({
     queryKey: ['vendas', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-      : lojaFiltroId ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : base44.entities.Venda.list('-created_date'),
+      : base44.entities.Venda.list('-created_date'),
+    // P02: Vendas em Clientes são usadas apenas para contar histórico — staleTime 5min
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const createMutation = useMutation({

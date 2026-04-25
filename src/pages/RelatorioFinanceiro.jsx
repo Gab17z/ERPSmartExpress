@@ -41,7 +41,7 @@ export default function RelatorioFinanceiro() {
     queryKey: ['vendas', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-      : lojaFiltroId ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : base44.entities.Venda.list('-created_date'),
+      : base44.entities.Venda.list('-created_date'),
   });
 
   const { data: contasReceber = [] } = useQuery({
@@ -50,7 +50,7 @@ export default function RelatorioFinanceiro() {
       try {
         return lojaFiltroId
           ? await base44.entities.ContaReceber.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' })
-          : lojaFiltroId ? await base44.entities.ContaReceber.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' }) : await base44.entities.ContaReceber.list('-data_vencimento');
+          : await base44.entities.ContaReceber.list('-data_vencimento');
       } catch {
         return [];
       }
@@ -63,7 +63,7 @@ export default function RelatorioFinanceiro() {
       try {
         return lojaFiltroId
           ? await base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' })
-          : lojaFiltroId ? await base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' }) : await base44.entities.ContaPagar.list('-data_vencimento');
+          : await base44.entities.ContaPagar.list('-data_vencimento');
       } catch {
         return [];
       }
@@ -76,7 +76,7 @@ export default function RelatorioFinanceiro() {
       try {
         return lojaFiltroId
           ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId })
-          : lojaFiltroId ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }) : await base44.entities.Comissao.list();
+          : await base44.entities.Comissao.list();
       } catch {
         return [];
       }
@@ -87,7 +87,7 @@ export default function RelatorioFinanceiro() {
     queryKey: ['produtos', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Produto.filter({ loja_id: lojaFiltroId })
-      : lojaFiltroId ? base44.entities.Produto.filter({ loja_id: lojaFiltroId }) : base44.entities.Produto.list(),
+      : base44.entities.Produto.list(),
   });
 
   // CORREÇÃO: Adicionar MovimentacaoCaixa para incluir sangria/suplemento
@@ -97,7 +97,7 @@ export default function RelatorioFinanceiro() {
       try {
         return lojaFiltroId
           ? await base44.entities.MovimentacaoCaixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-          : lojaFiltroId ? await base44.entities.MovimentacaoCaixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : await base44.entities.MovimentacaoCaixa.list('-created_date');
+          : await base44.entities.MovimentacaoCaixa.list('-created_date');
       } catch {
         return [];
       }

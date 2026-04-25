@@ -61,7 +61,7 @@ export default function Comissoes() {
     queryKey: ['vendas', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Venda.filter({ loja_id: lojaFiltroId })
-      : lojaFiltroId ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }) : base44.entities.Venda.list(),
+      : base44.entities.Venda.list(),
     refetchInterval: 30000
   });
 
@@ -71,7 +71,7 @@ export default function Comissoes() {
       try {
         return lojaFiltroId
           ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-          : lojaFiltroId ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : await base44.entities.Comissao.list('-created_date');
+          : await base44.entities.Comissao.list('-created_date');
       } catch {
         return [];
       }
@@ -83,7 +83,7 @@ export default function Comissoes() {
     queryKey: ['usuarios-sistema', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId })
-      : lojaFiltroId ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId }) : base44.entities.UsuarioSistema.list(),
+      : base44.entities.UsuarioSistema.list(),
   });
 
   const pagarComissaoMutation = useMutation({

@@ -30,7 +30,7 @@ export default function RelatorioFiscal() {
     queryKey: ['vendas', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Venda.filter({ loja_id: lojaFiltroId })
-      : lojaFiltroId ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-data_venda' }) : base44.entities.Venda.list('-data_venda'),
+      : base44.entities.Venda.list('-data_venda'),
   });
 
   const vendasFinalizadas = vendas.filter(v => v.status === 'finalizada' && filtrarPorData(v.created_date));
