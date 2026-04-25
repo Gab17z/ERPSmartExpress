@@ -123,7 +123,7 @@ export default function Caixa() {
       : lojaFiltroId ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId }, { order: 'nome' }) : base44.entities.UsuarioSistema.list('nome'),
   });
 
-  const caixaAberto = caixas.find(c => c.status === 'aberto');
+
 
   // Mapa de numeração sequencial: ordena por data de criação e atribui 1, 2, 3...
   // Isso corrige caixas antigos que tinham numero_caixa errado (ex: 16, 161)

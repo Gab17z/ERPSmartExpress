@@ -301,7 +301,7 @@ export default function PDV() {
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
-  const caixaAberto = caixas.find(c => c.status === 'aberto');
+
 
   const finalizarVendaMutation = useMutation({
     mutationFn: async (vendaData) => {
