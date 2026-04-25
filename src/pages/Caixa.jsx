@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { supabase } from "@/api/supabaseClient";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -418,21 +419,55 @@ export default function Caixa() {
         });
       });
 
-      const caixaAtualizado = await base44.entities.Caixa.update(caixaAberto.id, {
-        status: 'fechado',
-        data_fechamento: new Date().toISOString(),
-        usuario_fechamento: user?.nome || "Usuário",
-        total_vendas: totalVendas,
-        valor_contado: totalContado,
-        valor_fechamento: valorEsperadoReal,
-        diferenca: diferenca,
-        total_sangrias: totalSangrias,
-        total_suprimentos: totalSuprimentos,
-        observacoes_fechamento: observacoes,
-        aprovacao_diferenca: diferencaAbsoluta > LIMITE_DIFERENCA_SEM_APROVACAO ? user?.nome : null,
-        contagem_notas: contagemNotas,
-        resumo_pagamentos: resumoPag
-      });
+      // F04 FIX: Tentar fechamento atômico via RPC primeiro
+      // Isso evita que dois operadores fechem o mesmo caixa simultaneamente
+      const { data: rpcResult, error: rpcError } = await supabase
+        .rpc('fechar_caixa', {
+          p_caixa_id: caixaAberto.id,
+          p_status_esperado: 'aberto',
+          p_status_novo: 'fechado',
+          p_data_fechamento: new Date().toISOString(),
+          p_usuario_fechamento: user?.nome || 'Usuário',
+          p_total_vendas: totalVendas,
+          p_valor_contado: totalContado,
+          p_valor_fechamento: valorEsperadoReal,
+          p_diferenca: diferenca,
+          p_total_sangrias: totalSangrias,
+          p_total_suprimentos: totalSuprimentos,
+          p_observacoes: observacoes,
+          p_aprovacao_diferenca: diferencaAbsoluta > LIMITE_DIFERENCA_SEM_APROVACAO ? user?.nome : null,
+          p_contagem_notas: JSON.stringify(contagemNotas),
+          p_resumo_pagamentos: JSON.stringify(resumoPag)
+        });
+
+      let caixaAtualizado;
+      if (!rpcError && rpcResult) {
+        // RPC atomicamente verificou que estava 'aberto' e fechou
+        caixaAtualizado = rpcResult;
+      } else {
+        // Fallback: UPDATE direto com verificação manual de estado
+        // Buscar estado fresco para verificar se já foi fechado por outro operador
+        const caixaFresco = await base44.entities.Caixa.get(caixaAberto.id);
+        if (caixaFresco?.status === 'fechado') {
+          throw new Error('Este caixa já foi fechado por outro operador.');
+        }
+
+        caixaAtualizado = await base44.entities.Caixa.update(caixaAberto.id, {
+          status: 'fechado',
+          data_fechamento: new Date().toISOString(),
+          usuario_fechamento: user?.nome || 'Usuário',
+          total_vendas: totalVendas,
+          valor_contado: totalContado,
+          valor_fechamento: valorEsperadoReal,
+          diferenca: diferenca,
+          total_sangrias: totalSangrias,
+          total_suprimentos: totalSuprimentos,
+          observacoes_fechamento: observacoes,
+          aprovacao_diferenca: diferencaAbsoluta > LIMITE_DIFERENCA_SEM_APROVACAO ? user?.nome : null,
+          contagem_notas: contagemNotas,
+          resumo_pagamentos: resumoPag
+        });
+      }
 
       return { caixa: caixaAtualizado, vendas: vendasDoCaixa, movimentacoes: movsDoCaixa };
     },
