@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format, isWithinInterval, parseISO, startOfMonth } from "date-fns";
 import DateRangeFilter from "@/components/DateRangeFilter";
 
 export default function DRE() {
+  const { lojaFiltroId } = useLoja();
   const hoje = new Date();
   const [filtro, setFiltro] = useState({
     dataInicio: format(hoje, 'yyyy-MM-dd'),
@@ -24,22 +26,28 @@ export default function DRE() {
   };
 
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list(),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId 
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId })
+      : base44.entities.Venda.list(),
     refetchInterval: 30000
   });
 
   const { data: produtos = [] } = useQuery({
-    queryKey: ['produtos'],
-    queryFn: () => base44.entities.Produto.list(),
+    queryKey: ['produtos', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Produto.filter({ loja_id: lojaFiltroId })
+      : base44.entities.Produto.list(),
     refetchInterval: 30000
   });
 
   const { data: contasPagar = [] } = useQuery({
-    queryKey: ['contas-pagar'],
+    queryKey: ['contas-pagar', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.ContaPagar.list();
+        return lojaFiltroId
+          ? await base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId })
+          : await base44.entities.ContaPagar.list();
       } catch {
         return [];
       }
@@ -48,10 +56,12 @@ export default function DRE() {
   });
 
   const { data: contasReceber = [] } = useQuery({
-    queryKey: ['contas-receber'],
+    queryKey: ['contas-receber', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.ContaReceber.list();
+        return lojaFiltroId
+          ? await base44.entities.ContaReceber.filter({ loja_id: lojaFiltroId })
+          : await base44.entities.ContaReceber.list();
       } catch {
         return [];
       }
@@ -60,10 +70,12 @@ export default function DRE() {
   });
 
   const { data: devolucoes = [] } = useQuery({
-    queryKey: ['devolucoes'],
+    queryKey: ['devolucoes', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.Devolucao.list();
+        return lojaFiltroId
+          ? await base44.entities.Devolucao.filter({ loja_id: lojaFiltroId })
+          : await base44.entities.Devolucao.list();
       } catch {
         return [];
       }
@@ -82,10 +94,12 @@ export default function DRE() {
   }, [devolucoes]);
 
   const { data: comissoes = [] } = useQuery({
-    queryKey: ['comissoes'],
+    queryKey: ['comissoes', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.Comissao.list();
+        return lojaFiltroId
+          ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId })
+          : await base44.entities.Comissao.list();
       } catch {
         return [];
       }

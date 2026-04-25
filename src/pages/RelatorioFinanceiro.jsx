@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +19,7 @@ import { exportFinanceiroPDF } from "@/utils/pdfExport";
 const COLORS = ['#10b981', '#ef4444', '#3b82f6', '#f59e0b', '#8b5cf6'];
 
 export default function RelatorioFinanceiro() {
+  const { lojaFiltroId } = useLoja();
   const navigate = useNavigate();
   const hoje = new Date();
   const [filtro, setFiltro] = useState({
@@ -36,15 +38,19 @@ export default function RelatorioFinanceiro() {
   };
 
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list('-created_date'),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : lojaFiltroId ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : base44.entities.Venda.list('-created_date'),
   });
 
   const { data: contasReceber = [] } = useQuery({
-    queryKey: ['contas-receber'],
+    queryKey: ['contas-receber', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.ContaReceber.list('-data_vencimento');
+        return lojaFiltroId
+          ? await base44.entities.ContaReceber.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' })
+          : lojaFiltroId ? await base44.entities.ContaReceber.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' }) : await base44.entities.ContaReceber.list('-data_vencimento');
       } catch {
         return [];
       }
@@ -52,10 +58,12 @@ export default function RelatorioFinanceiro() {
   });
 
   const { data: contasPagar = [] } = useQuery({
-    queryKey: ['contas-pagar'],
+    queryKey: ['contas-pagar', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.ContaPagar.list('-data_vencimento');
+        return lojaFiltroId
+          ? await base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' })
+          : lojaFiltroId ? await base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' }) : await base44.entities.ContaPagar.list('-data_vencimento');
       } catch {
         return [];
       }
@@ -63,10 +71,12 @@ export default function RelatorioFinanceiro() {
   });
 
   const { data: comissoes = [] } = useQuery({
-    queryKey: ['comissoes'],
+    queryKey: ['comissoes', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.Comissao.list();
+        return lojaFiltroId
+          ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId })
+          : lojaFiltroId ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }) : await base44.entities.Comissao.list();
       } catch {
         return [];
       }
@@ -74,16 +84,20 @@ export default function RelatorioFinanceiro() {
   });
 
   const { data: produtos = [] } = useQuery({
-    queryKey: ['produtos'],
-    queryFn: () => base44.entities.Produto.list(),
+    queryKey: ['produtos', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Produto.filter({ loja_id: lojaFiltroId })
+      : lojaFiltroId ? base44.entities.Produto.filter({ loja_id: lojaFiltroId }) : base44.entities.Produto.list(),
   });
 
   // CORREÇÃO: Adicionar MovimentacaoCaixa para incluir sangria/suplemento
   const { data: movimentacoesCaixa = [] } = useQuery({
-    queryKey: ['movimentacoes-caixa'],
+    queryKey: ['movimentacoes-caixa', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.MovimentacaoCaixa.list('-created_date');
+        return lojaFiltroId
+          ? await base44.entities.MovimentacaoCaixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+          : lojaFiltroId ? await base44.entities.MovimentacaoCaixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : await base44.entities.MovimentacaoCaixa.list('-created_date');
       } catch {
         return [];
       }

@@ -42,22 +42,28 @@ export function LojaProvider({ children }) {
       const listaLojas = await fetchLojas();
 
       if (isAdmin) {
-        // Admin: restaurar escolha salva ou deixar null (= ver tudo)
+        // Admin: restaurar escolha salva ou usar a loja do seu perfil como padrão
         const saved = localStorage.getItem(LOJA_KEY);
         if (saved) {
           try {
             const parsed = JSON.parse(saved);
-            // Verificar se a loja salva ainda existe
             const lojaExiste = listaLojas.find(l => l.id === parsed.id);
             setLojaAtivaState(lojaExiste || null);
           } catch {
             setLojaAtivaState(null);
           }
         } else {
-          setLojaAtivaState(null); // Admin vê tudo por padrão
+          // Se admin tem loja vinculada, usa ela por padrão, senão vê tudo (null)
+          const lojaPadraoId = user?.loja_id || user?.usuarioSistema?.loja_id;
+          if (lojaPadraoId) {
+            const loja = listaLojas.find(l => l.id === lojaPadraoId);
+            setLojaAtivaState(loja || null);
+          } else {
+            setLojaAtivaState(null);
+          }
         }
       } else {
-        // Usuário comum: buscar loja do seu usuario_sistema
+        // Usuário comum: buscar loja do seu usuario_sistema (OBRIGATÓRIO)
         const lojaId = user?.loja_id || user?.usuarioSistema?.loja_id;
         
         if (lojaId) {
@@ -91,7 +97,9 @@ export function LojaProvider({ children }) {
     loadingLoja,
     isAdmin,
     // Helper: retorna o loja_id para usar em queries (null se admin sem filtro)
-    lojaFiltroId: lojaAtiva?.id || null,
+    lojaFiltroId: isAdmin 
+      ? (lojaAtiva?.id || null) 
+      : (lojaAtiva?.id || user?.loja_id || user?.usuarioSistema?.loja_id || null),
     // Helper: label para exibição no header
     lojaLabel: lojaAtiva?.nome || (isAdmin ? 'Todas as Lojas' : ''),
   };

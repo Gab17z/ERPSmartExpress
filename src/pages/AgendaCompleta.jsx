@@ -1,3 +1,4 @@
+import { useLoja } from '@/contexts/LojaContext';
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +20,7 @@ import { format, isToday, isTomorrow, isAfter, startOfDay, addDays } from "date-
 import { useConfirm } from '@/contexts/ConfirmContext';
 
 export default function AgendaCompleta() {
+  const { lojaFiltroId } = useLoja();
   const confirm = useConfirm();
 
   const [dialogEvento, setDialogEvento] = useState(false);
@@ -50,10 +52,10 @@ export default function AgendaCompleta() {
   const queryClient = useQueryClient();
 
   const { data: eventos = [] } = useQuery({
-    queryKey: ['eventos'],
+    queryKey: ['eventos', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.Evento.list('-data_inicio');
+        return lojaFiltroId ? await base44.entities.Evento.filter({ loja_id: lojaFiltroId }, { order: '-data_inicio' }) : await base44.entities.Evento.list('-data_inicio');
       } catch {
         return [];
       }
@@ -61,15 +63,15 @@ export default function AgendaCompleta() {
   });
 
   const { data: clientes = [] } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: () => base44.entities.Cliente.list('nome_completo'),
+    queryKey: ['clientes', lojaFiltroId],
+    queryFn: () => lojaFiltroId ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: 'nome_completo' }) : base44.entities.Cliente.list('nome_completo'),
   });
 
   const { data: usuarios = [] } = useQuery({
     queryKey: ['usuarios-sistema'],
     queryFn: async () => {
       try {
-        return await base44.entities.UsuarioSistema.list();
+        return lojaFiltroId ? await base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId }) : await base44.entities.UsuarioSistema.list();
       } catch {
         return [];
       }
@@ -81,7 +83,7 @@ export default function AgendaCompleta() {
     queryKey: ['tipos-evento'],
     queryFn: async () => {
       try {
-        return await base44.entities.TipoEvento.list('nome');
+        return lojaFiltroId ? await base44.entities.TipoEvento.filter({ loja_id: lojaFiltroId }, { order: 'nome' }) : await base44.entities.TipoEvento.list('nome');
       } catch {
         return [
           { id: '1', nome: 'Técnico', icone: 'user', cor: '#3b82f6' },
@@ -96,7 +98,7 @@ export default function AgendaCompleta() {
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.Evento.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['eventos'] });
+      queryClient.invalidateQueries({ queryKey: ['eventos', lojaFiltroId] });
       toast.success("Evento criado!");
       setDialogEvento(false);
       resetForm();
@@ -106,7 +108,7 @@ export default function AgendaCompleta() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Evento.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['eventos'] });
+      queryClient.invalidateQueries({ queryKey: ['eventos', lojaFiltroId] });
       toast.success("Evento atualizado!");
       setDialogEvento(false);
       resetForm();
@@ -116,7 +118,7 @@ export default function AgendaCompleta() {
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Evento.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['eventos'] });
+      queryClient.invalidateQueries({ queryKey: ['eventos', lojaFiltroId] });
       toast.success("Evento excluído!");
     },
   });
@@ -218,7 +220,8 @@ export default function AgendaCompleta() {
       data_inicio: `${formData.data}T${formData.hora}:00`,
       cliente_id: formData.cliente_id || null,
       cliente_nome: formData.cliente_nome || null,
-      usuario_id: formData.tecnico_id || null
+      usuario_id: formData.tecnico_id || null,
+      loja_id: lojaFiltroId || null
     };
 
     if (eventoSelecionado) {

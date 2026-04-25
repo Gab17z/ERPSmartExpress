@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { base44 } from "@/api/base44Client";
+import { useLoja } from "@/contexts/LojaContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import { format } from "date-fns";
 
 export default function Compras() {
   const { user } = useAuth();
+  const { lojaFiltroId } = useLoja();
   const [dialogCompra, setDialogCompra] = useState(false);
   const [dialogProduto, setDialogProduto] = useState(false);
   const [uploadingPDF, setUploadingPDF] = useState(false);
@@ -39,10 +41,11 @@ export default function Compras() {
   const queryClient = useQueryClient();
 
   const { data: compras = [] } = useQuery({
-    queryKey: ['compras'],
+    queryKey: ['compras', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.Compra.list('-data_compra');
+        if (!lojaFiltroId) return [];
+        return await base44.entities.Compra.filter({ loja_id: lojaFiltroId }, { order: '-data_compra' });
       } catch {
         return [];
       }
@@ -51,20 +54,28 @@ export default function Compras() {
   });
 
   const { data: fornecedores = [] } = useQuery({
-    queryKey: ['fornecedores'],
-    queryFn: () => base44.entities.Fornecedor.list('nome_fantasia'),
+    queryKey: ['fornecedores', lojaFiltroId],
+    queryFn: () => {
+      if (!lojaFiltroId) return [];
+      return base44.entities.Fornecedor.filter({ loja_id: lojaFiltroId }, { order: 'nome' });
+    },
   });
 
   const { data: produtos = [] } = useQuery({
-    queryKey: ['produtos'],
-    queryFn: () => base44.entities.Produto.list('nome'),
+    queryKey: ['produtos', lojaFiltroId],
+    queryFn: () => {
+      if (!lojaFiltroId) return [];
+      return base44.entities.Produto.filter({ loja_id: lojaFiltroId }, { order: 'nome' });
+    },
   });
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
       
-      // CORREÇÃO: Buscar compras frescas do banco para numeração correta
-      const comprasAtuais = await base44.entities.Compra.list('-created_date', 1);
+      // CORREÇÃO: Buscar compras frescas do banco para numeração correta (filtrado por loja)
+      const comprasAtuais = lojaFiltroId
+        ? await base44.entities.Compra.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+        : await base44.entities.Compra.list('-created_date');
       const ultimaCompra = comprasAtuais[0];
       let proximoNumero = 1;
       if (ultimaCompra?.numero) {
@@ -83,7 +94,7 @@ export default function Compras() {
         // Se for um produto novo (não identificado)
         if (item.produto_id.startsWith('temp_')) {
           // CRÍTICO: Gerar SKU numérico sequencial (padrão do sistema)
-          const produtosAtuais = await base44.entities.Produto.list('-created_date');
+          const produtosAtuais = lojaFiltroId ? await base44.entities.Produto.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : await base44.entities.Produto.list('-created_date');
           const skusNumericos = produtosAtuais
             .map(p => parseInt(p.sku))
             .filter(sku => !isNaN(sku))
@@ -103,7 +114,8 @@ export default function Compras() {
             estoque_minimo: 5,
             fornecedor_nome: data.fornecedor_nome,
             codigo_barras: item.codigo_pdf || '',
-            ativo: true
+            ativo: true,
+            loja_id: lojaFiltroId
           });
 
           produtoId = novoProduto.id;
@@ -120,7 +132,8 @@ export default function Compras() {
             motivo: "Compra de fornecedor - Produto novo cadastrado",
             documento_referencia: numeroCompra,
             usuario_responsavel: user?.nome,
-            data_movimentacao: new Date().toISOString()
+            data_movimentacao: new Date().toISOString(),
+            loja_id: lojaFiltroId
           });
 
           toast.success(`✅ Produto "${item.produto_nome}" cadastrado automaticamente!`);
@@ -148,7 +161,8 @@ export default function Compras() {
               motivo: "Compra de fornecedor",
               documento_referencia: numeroCompra,
               usuario_responsavel: user?.nome,
-              data_movimentacao: new Date().toISOString()
+              data_movimentacao: new Date().toISOString(),
+              loja_id: lojaFiltroId
             });
           }
         }
@@ -173,14 +187,15 @@ export default function Compras() {
         observacoes: data.observacoes || null,
         numero: numeroCompra,
         data_compra: new Date().toISOString().split('T')[0],
-        status: "pendente"
+        status: "pendente",
+        loja_id: lojaFiltroId
       });
 
       return compra;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['compras'] });
-      queryClient.invalidateQueries({ queryKey: ['produtos'] });
+      queryClient.invalidateQueries({ queryKey: ['compras', lojaFiltroId] });
+      queryClient.invalidateQueries({ queryKey: ['produtos', lojaFiltroId] });
       toast.success("Compra registrada! Estoque atualizado e novos produtos cadastrados.");
       resetForm();
     },
@@ -193,7 +208,7 @@ export default function Compras() {
   const finalizarMutation = useMutation({
     mutationFn: (id) => base44.entities.Compra.update(id, { status: "entregue" }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['compras'] });
+      queryClient.invalidateQueries({ queryKey: ['compras', lojaFiltroId] });
       toast.success("Compra finalizada!");
     },
   });

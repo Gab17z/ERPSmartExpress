@@ -184,6 +184,7 @@ export default function Produtos() {
           recurso_id: resultado.id,
           descricao: `Produto criado: ${data.nome}`,
           dados_depois: data,
+          loja_id: lojaFiltroId || user?.loja_id || null,
           data_hora: new Date().toISOString()
         });
       } catch (logError) {
@@ -222,6 +223,7 @@ export default function Produtos() {
           descricao: `Produto alterado: ${data.nome}`,
           dados_antes: produtoAnterior,
           dados_depois: { ...produtoAnterior, ...data },
+          loja_id: lojaFiltroId || user?.loja_id || null,
           data_hora: new Date().toISOString()
         });
       } catch (logError) {
@@ -371,6 +373,7 @@ export default function Produtos() {
 
     const dadosProduto = {
       ...formData,
+      loja_id: lojaFiltroId || user?.loja_id || null,
       preco_custo: parseFloat(formData.preco_custo) || 0,
       preco_venda: parseFloat(formData.preco_venda) || 0,
       margem_lucro: formData.margem_lucro || 0

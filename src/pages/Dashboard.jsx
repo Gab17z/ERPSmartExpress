@@ -15,8 +15,18 @@ import {
   Wrench,
   AlertCircle,
   ArrowUpRight,
-  Calendar
+  Calendar,
+  CheckCircle2,
+  Trophy,
+  Cake,
+  Gift,
+  PartyPopper,
+  X,
+  Phone
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,10 +58,6 @@ import { ptBR } from "date-fns/locale";
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 export default function Dashboard() {
-  const [dateRange, setDateRange] = useState(30);
-  const [periodo, setPeriodo] = useState("dia"); // dia, mes, ano - PADRÃO: HOJE
-  const [periodoSelecionado, setPeriodoSelecionado] = useState(7);
-
   // Usar o novo sistema de autenticação
   const { user } = useAuth();
   const { lojaFiltroId, lojaLabel } = useLoja();
@@ -59,21 +65,33 @@ export default function Dashboard() {
                   user?.permissoes?.administrador_sistema === true;
   const podVerCustos = user?.permissoes?.visualizar_custos === true || isAdmin;
 
+  const [dateRange, setDateRange] = useState(30);
+  const [periodo, setPeriodo] = useState(podVerCustos ? "mes" : "dia"); // Admin vê Mês, Vendedor vê Hoje
+  const [periodoSelecionado, setPeriodoSelecionado] = useState(7);
+  const [dialogAniversariantes, setDialogAniversariantes] = useState(false);
+  const [showBirthdayBanner, setShowBirthdayBanner] = useState(true);
+
   const { data: vendas = [], isLoading: loadingVendas } = useQuery({
     queryKey: ['vendas', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
       : base44.entities.Venda.list('-created_date'),
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always'
   });
 
   const { data: produtos = [], isLoading: loadingProdutos } = useQuery({
-    queryKey: ['produtos'],
-    queryFn: () => base44.entities.Produto.list(),
+    queryKey: ['produtos', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Produto.filter({ loja_id: lojaFiltroId })
+      : base44.entities.Produto.list(),
   });
 
   const { data: clientes = [], isLoading: loadingClientes } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: () => base44.entities.Cliente.list('-created_date'),
+    queryKey: ['clientes', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.Cliente.list('-created_date'),
   });
 
   const { data: ordensServico = [], isLoading: loadingOS } = useQuery({
@@ -81,17 +99,40 @@ export default function Dashboard() {
     queryFn: () => lojaFiltroId
       ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
       : base44.entities.OrdemServico.list('-created_date'),
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always'
   });
 
   const { data: caixas = [] } = useQuery({
     queryKey: ['caixas', lojaFiltroId],
-    queryFn: () => base44.entities.Caixa.list('-created_date', 10),
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Caixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date', limit: 10 })
+      : base44.entities.Caixa.list('-created_date', 10),
   });
+
+  const aniversariantesHoje = useMemo(() => {
+    const hoje = new Date();
+    const diaHoje = hoje.getDate();
+    const mesHoje = hoje.getMonth() + 1;
+
+    return clientes.filter(cliente => {
+      if (!cliente.data_nascimento) return false;
+      // Tratar a data para evitar problemas de fuso horário
+      const partes = cliente.data_nascimento.split('-');
+      if (partes.length !== 3) return false;
+      
+      const diaNasc = parseInt(partes[2]);
+      const mesNasc = parseInt(partes[1]);
+      
+      return diaNasc === diaHoje && mesNasc === mesHoje;
+    });
+  }, [clientes]);
 
   const { data: comissoes = [], isLoading: loadingComissoes } = useQuery({
     queryKey: ['comissoes', lojaFiltroId],
     queryFn: async () => {
       try {
+        // Removido filtro de loja_id pois a coluna não existe
         return await base44.entities.Comissao.list();
       } catch (error) {
         console.error("Erro ao carregar comissões:", error);
@@ -100,10 +141,54 @@ export default function Dashboard() {
     },
   });
 
+  const { data: metasConfigDb } = useQuery({
+    queryKey: ['metas-sistema-db', lojaFiltroId],
+    queryFn: async () => {
+      try {
+        let configs = [];
+        if (lojaFiltroId) {
+          configs = await base44.entities.Configuracao.filter({ 
+            chave: 'metas_sistema',
+            loja_id: lojaFiltroId
+          });
+        }
+        if (configs.length === 0) {
+          configs = await base44.entities.Configuracao.filter({ 
+            chave: 'metas_sistema',
+            loja_id: null
+          });
+        }
+        if (configs.length === 0) {
+          configs = await base44.entities.Configuracao.filter({ 
+            chave: 'metas_sistema'
+          });
+        }
+        const valor = configs[0]?.valor;
+        if (!valor) return null;
+        return typeof valor === 'string' ? JSON.parse(valor) : valor;
+      } catch (error) {
+        console.error("Erro ao buscar metas do banco:", error);
+        return null;
+      }
+    },
+  });
+
+  const metasConfig = useMemo(() => {
+    if (metasConfigDb) return metasConfigDb;
+    try {
+      const local = localStorage.getItem('metas_sistema');
+      if (local) return JSON.parse(local);
+    } catch {}
+    return {};
+  }, [metasConfigDb]);
+
+  const navigate = useNavigate();
+
   const { data: devolucoes = [] } = useQuery({
     queryKey: ['devolucoes', lojaFiltroId],
     queryFn: async () => {
       try {
+        // Removido filtro de loja_id pois a coluna não existe
         return await base44.entities.Devolucao.list();
       } catch {
         return [];
@@ -122,6 +207,15 @@ export default function Dashboard() {
     return mapa;
   }, [devolucoes]);
 
+  // Função robusta para parse de data (ISO ou YYYY-MM-DD)
+  const parseSafeDate = (dateStr) => {
+    if (!dateStr) return new Date(0);
+    if (typeof dateStr === 'string' && dateStr.length === 10 && !dateStr.includes('T')) {
+      return new Date(`${dateStr}T00:00:00`);
+    }
+    return new Date(dateStr);
+  };
+
   // Filtrar por período
   const getDataInicio = () => {
     const hoje = new Date();
@@ -132,14 +226,14 @@ export default function Dashboard() {
   };
 
   const vendasPeriodo = vendas.filter(v => {
-    const dataVenda = new Date(v.created_date);
+    const dataVenda = parseSafeDate(v.created_date || v.data_venda);
     return dataVenda >= getDataInicio() && v.status === 'finalizada';
   });
 
   // Calcular KPIs
   const vendasFinalizadas = vendas.filter(v => v.status === 'finalizada');
   const vendasHoje = vendasFinalizadas.filter(v => {
-    const dataVenda = new Date(v.created_date);
+    const dataVenda = parseSafeDate(v.created_date || v.data_venda);
     const hoje = startOfDay(new Date());
     return dataVenda >= hoje;
   });
@@ -190,15 +284,116 @@ export default function Dashboard() {
   );
 
   // Mini-dashboard do vendedor: dados pessoais
-  const meuId = user?.id;
-  const minhasVendasPeriodo = vendasPeriodo.filter(v => v.vendedor_id === meuId);
+  const meuId = user?.id?.toString();
+  
+  // Vendas do período selecionado (dinâmico)
+  const minhasVendasPeriodo = vendasPeriodo.filter(v => {
+    const v_id = v.vendedor_id?.toString().toLowerCase().trim();
+    const u_id = v.usuario_id?.toString().toLowerCase().trim();
+    const m_id = meuId?.toLowerCase().trim();
+    const nomeVendedorVenda = v.vendedor_nome?.toLowerCase().trim();
+    const meuNome = user?.nome?.toLowerCase().trim();
+
+    return v_id === m_id || u_id === m_id || (nomeVendedorVenda && meuNome && nomeVendedorVenda.includes(meuNome));
+  });
   const minhasFaturamentoPeriodo = minhasVendasPeriodo.reduce((sum, v) => sum + Math.max(0, (parseFloat(v.valor_total) || 0) - (devolucoesPorVenda[v.id] || 0)), 0);
-  const minhasComissoes = comissoes.filter(c => c.vendedor_id === meuId);
+  
+  // Vendas do MÊS ATUAL (fixo para cálculo de metas)
+  const vendasMesAtual = vendas.filter(v => {
+    const dataVenda = parseSafeDate(v.created_date || v.data_venda);
+    return dataVenda >= startOfMonth(new Date()) && v.status === 'finalizada';
+  });
+  const minhasVendasMes = vendasMesAtual.filter(v => {
+    const v_id = v.vendedor_id?.toString().toLowerCase().trim();
+    const u_id = v.usuario_id?.toString().toLowerCase().trim();
+    const m_id = meuId?.toLowerCase().trim();
+    const nomeVendedorVenda = v.vendedor_nome?.toLowerCase().trim();
+    const meuNome = user?.nome?.toLowerCase().trim();
+
+    return v_id === m_id || u_id === m_id || (nomeVendedorVenda && meuNome && nomeVendedorVenda.includes(meuNome));
+  });
+  const minhasFaturamentoMes = minhasVendasMes.reduce((sum, v) => sum + Math.max(0, (parseFloat(v.valor_total) || 0) - (devolucoesPorVenda[v.id] || 0)), 0);
+
+  const minhasComissoes = comissoes.filter(c => c.vendedor_id?.toString().toLowerCase().trim() === meuId?.toLowerCase().trim());
   const comissaoPendente = minhasComissoes.filter(c => c.status === 'pendente').reduce((sum, c) => sum + (parseFloat(c.valor_comissao) || 0), 0);
   const comissaoPaga = minhasComissoes.filter(c => c.status === 'pago').reduce((sum, c) => sum + (parseFloat(c.valor_comissao) || 0), 0);
+  
   const minhasOsAbertas = ordensServico.filter(os =>
-    os.tecnico_responsavel === user?.nome && !['entregue', 'faturada', 'cancelado'].includes(os.status)
+    (os.tecnico_responsavel === user?.nome || os.atendente_abertura === user?.nome || os.tecnico_id?.toString() === meuId || os.vendedor_id?.toString() === meuId) && 
+    !['entregue', 'faturada', 'cancelado'].includes(os.status)
   );
+
+  const minhasOsProntas = ordensServico.filter(os =>
+    (os.tecnico_responsavel === user?.nome || os.atendente_abertura === user?.nome || os.tecnico_id?.toString() === meuId || os.vendedor_id?.toString() === meuId) && 
+    os.status === 'pronto'
+  );
+
+  // CÁLCULO DE META DINÂMICA BASEADA NO FILTRO
+  const metaMensalVendas = metasConfig.individuais?.[user?.id]?.vendas || 
+                           metasConfig.vendas_vendedor || 
+                           Math.round((metasConfig.vendas_loja || 50000) / 5);
+
+  let metaPeriodoAlvo = 0;
+  let faturamentoPeriodoVendedor = minhasFaturamentoPeriodo;
+  let labelMeta = "Meta";
+
+  if (periodo === "dia") {
+    const hojeDate = new Date();
+    const diaAtual = hojeDate.getDate();
+    const totalDiasMes = new Date(hojeDate.getFullYear(), hojeDate.getMonth() + 1, 0).getDate();
+    const diasRestantes = totalDiasMes - diaAtual + 1;
+    
+    const faturamentoHojeVendedor = vendasHoje.filter(v => {
+      const v_id = v.vendedor_id?.toString().toLowerCase().trim();
+      const u_id = v.usuario_id?.toString().toLowerCase().trim();
+      const m_id = meuId?.toLowerCase().trim();
+      const nomeVendedorVenda = v.vendedor_nome?.toLowerCase().trim();
+      const meuNome = user?.nome?.toLowerCase().trim();
+      
+      return v_id === m_id || u_id === m_id || (nomeVendedorVenda && meuNome && nomeVendedorVenda.includes(meuNome));
+    }).reduce((sum, v) => sum + Math.max(0, (parseFloat(v.valor_total) || 0) - (devolucoesPorVenda[v.id] || 0)), 0);
+    const faturamentoMesAteOntem = Math.max(0, minhasFaturamentoMes - faturamentoHojeVendedor);
+    const metaRestante = Math.max(0, metaMensalVendas - faturamentoMesAteOntem);
+    
+    metaPeriodoAlvo = metaRestante / diasRestantes;
+    faturamentoPeriodoVendedor = faturamentoHojeVendedor;
+    labelMeta = "Meta Diária";
+  } else if (periodo === "mes") {
+    metaPeriodoAlvo = metaMensalVendas;
+    faturamentoPeriodoVendedor = minhasFaturamentoMes;
+    labelMeta = "Meta Mensal";
+  } else if (periodo === "ano") {
+    metaPeriodoAlvo = metaMensalVendas * 12;
+    // O faturamentoPeriodoVendedor já reflete o ano se periodo for "ano"
+    labelMeta = "Meta Anual";
+  }
+
+  const metaBatida = metaPeriodoAlvo > 0 && faturamentoPeriodoVendedor >= metaPeriodoAlvo;
+
+  // CÁLCULO DE META DA LOJA (PARA ADMIN)
+  const faturamentoTotalMes = vendasMesAtual.reduce((sum, v) => sum + Math.max(0, (parseFloat(v.valor_total) || 0) - (devolucoesPorVenda[v.id] || 0)), 0);
+  const metaLojaVendas = metasConfig.vendas_loja || 50000;
+  let metaLojaPeriodoAlvo = 0;
+  let faturamentoLojaPeriodo = faturamentoPeriodo; // Faturamento do período filtrado
+
+  if (periodo === "dia") {
+    const hojeDate = new Date();
+    const diaAtual = hojeDate.getDate();
+    const totalDiasMes = new Date(hojeDate.getFullYear(), hojeDate.getMonth() + 1, 0).getDate();
+    const diasRestantes = totalDiasMes - diaAtual + 1;
+    
+    const faturamentoMesAteOntemLoja = Math.max(0, faturamentoTotalMes - faturamentoHoje);
+    const metaRestanteLoja = Math.max(0, metaLojaVendas - faturamentoMesAteOntemLoja);
+    metaLojaPeriodoAlvo = metaRestanteLoja / diasRestantes;
+    faturamentoLojaPeriodo = faturamentoHoje;
+  } else if (periodo === "mes") {
+    metaLojaPeriodoAlvo = metaLojaVendas;
+    faturamentoLojaPeriodo = faturamentoTotalMes;
+  } else if (periodo === "ano") {
+    metaLojaPeriodoAlvo = metaLojaVendas * 12;
+  }
+
+  const metaLojaBatida = metaLojaPeriodoAlvo > 0 && faturamentoLojaPeriodo >= metaLojaPeriodoAlvo;
 
   // Vendas por vendedor - memoizado para performance
   const topVendedores = useMemo(() => {
@@ -334,11 +529,63 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Banner de Aniversariantes */}
+      <AnimatePresence>
+        {aniversariantesHoje.length > 0 && showBirthdayBanner && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 p-0.5 rounded-xl shadow-lg mb-2">
+              <div className="bg-white rounded-[10px] p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="bg-pink-100 p-2 rounded-full">
+                    <Cake className="w-6 h-6 text-pink-600 animate-bounce" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900">Hoje é dia de festa! 🎉</h3>
+                    <p className="text-sm text-slate-600">
+                      Temos <span className="font-bold text-purple-600">{aniversariantesHoje.length}</span> {aniversariantesHoje.length === 1 ? 'cliente fazendo' : 'clientes fazendo'} aniversário hoje. 
+                      Que tal enviar um parabéns?
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    size="sm" 
+                    onClick={() => setDialogAniversariantes(true)}
+                    className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white border-none shadow-md"
+                  >
+                    Ver Aniversariantes
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => setShowBirthdayBanner(false)}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Mini-Dashboard do Vendedor */}
       {!podVerCustos && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="border-none shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+          <motion.div
+            whileHover={{ y: -4 }}
+            whileTap={{ scale: 0.98 }}
+            className="cursor-pointer"
+            onClick={() => navigate(createPageUrl("PDV"))}
+          >
+            <Card className="border-none shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white h-full">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-medium text-blue-100">
@@ -348,66 +595,100 @@ export default function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{minhasVendasPeriodo.length}</div>
+                <div className="text-3xl font-bold">
+                  {minhasVendasPeriodo.length}
+                </div>
                 <p className="text-xs text-blue-100 mt-2">
-                  R$ {minhasFaturamentoPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em vendas
+                  R$ {minhasFaturamentoPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {getNomePeriodo().toLowerCase()}
                 </p>
               </CardContent>
             </Card>
+          </motion.div>
 
-            <Card className="border-none shadow-lg bg-gradient-to-br from-green-500 to-green-600 text-white">
+          <motion.div
+            whileHover={{ y: -4 }}
+            whileTap={{ scale: 0.98 }}
+            className="cursor-pointer"
+            onClick={() => navigate(createPageUrl("Metas"))}
+          >
+            <Card className={`border-none shadow-lg text-white bg-gradient-to-br h-full ${metaBatida ? 'from-green-500 to-green-600' : 'from-red-500 to-red-600'}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium text-green-100">
-                    Comissão Pendente
+                  <CardTitle className="text-sm font-medium opacity-90">
+                    {labelMeta}
                   </CardTitle>
-                  <DollarSign className="w-5 h-5 text-green-100" />
+                  {metaBatida ? <CheckCircle2 className="w-5 h-5 text-white" /> : <Trophy className="w-5 h-5 text-white opacity-50" />}
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold">
-                  R$ {comissaoPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  {metaBatida ? "Batida!" : (metaPeriodoAlvo > 0 ? "Pendente" : "Sem Meta")}
                 </div>
-                <p className="text-xs text-green-100 mt-2">
-                  R$ {comissaoPaga.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} já recebido
+                <p className="text-xs mt-2 opacity-90">
+                  {(periodo === 'mes' || periodo === 'ano') ? 'Falta para Meta' : (periodo === 'dia' ? 'Alvo de Hoje' : 'Alvo do Período')}: R$ {( (periodo === 'mes' || periodo === 'ano') ? Math.max(0, metaPeriodoAlvo - faturamentoPeriodoVendedor) : metaPeriodoAlvo ).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </CardContent>
             </Card>
+          </motion.div>
 
-            <Card className="border-none shadow-lg bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+          <motion.div
+            whileHover={{ y: -4 }}
+            whileTap={{ scale: 0.98 }}
+            className="cursor-pointer"
+            onClick={() => navigate(createPageUrl("OrdensServico"))}
+          >
+            <Card className="border-none shadow-lg bg-gradient-to-br from-orange-500 to-orange-600 text-white h-full">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-medium text-orange-100">
-                    Minhas OS Abertas
+                    O.S. Abertas
                   </CardTitle>
                   <Wrench className="w-5 h-5 text-orange-100" />
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{minhasOsAbertas.length}</div>
+                <div className="text-3xl font-bold">
+                  {minhasOsAbertas.length}
+                </div>
                 <p className="text-xs text-orange-100 mt-2">
-                  atribuídas a mim
+                  {minhasOsProntas.length} prontas para entrega
                 </p>
               </CardContent>
             </Card>
+          </motion.div>
 
-            <Card className="border-none shadow-lg bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+          <motion.div
+            whileHover={{ y: -4 }}
+            whileTap={{ scale: 0.98 }}
+            className="cursor-pointer"
+            onClick={() => navigate(createPageUrl("Metas"))}
+          >
+            <Card className="border-none shadow-lg bg-gradient-to-br from-purple-500 to-purple-600 text-white h-full">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-medium text-purple-100">
-                    Total Comissões
+                    Comissões {getNomePeriodo()}
                   </CardTitle>
                   <TrendingUp className="w-5 h-5 text-purple-100" />
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold">{minhasComissoes.length}</div>
+                <div className="text-3xl font-bold">
+                  {minhasComissoes.filter(c => {
+                    const d = new Date(c.created_date || c.data_geracao);
+                    return d >= getDataInicio();
+                  }).length}
+                </div>
                 <p className="text-xs text-purple-100 mt-2">
-                  {minhasComissoes.filter(c => c.status === 'pendente').length} pendentes
+                  R$ {minhasComissoes.filter(c => {
+                    const d = new Date(c.created_date || c.data_geracao);
+                    return d >= getDataInicio();
+                  }).reduce((sum, c) => sum + (parseFloat(c.valor_comissao) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} no período
                 </p>
               </CardContent>
             </Card>
-          </div>
+          </motion.div>
+        </div>
 
           {/* Últimas vendas do vendedor */}
           <Card className="border-none shadow-lg">
@@ -445,7 +726,31 @@ export default function Dashboard() {
       {podVerCustos && (
         <>
           {/* KPIs */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+            <Card className={`border-none shadow-lg text-white bg-gradient-to-br ${metaLojaBatida ? 'from-green-500 to-green-600' : 'from-red-500 to-red-600'}`}>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium opacity-90">
+                    Progresso da Loja ({labelMeta})
+                  </CardTitle>
+                  {metaLojaBatida ? <CheckCircle2 className="w-5 h-5" /> : <Trophy className="w-5 h-5 opacity-50" />}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {metaLojaBatida ? "Meta Batida!" : (metaLojaPeriodoAlvo > 0 ? "Pendente" : "Sem Meta")}
+                </div>
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs opacity-90">
+                    Realizado: R$ {faturamentoLojaPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-xs opacity-90">
+                    {(periodo === 'mes' || periodo === 'ano') ? 'Falta para Meta' : 'Alvo'}: R$ {( (periodo === 'mes' || periodo === 'ano') ? Math.max(0, metaLojaPeriodoAlvo - faturamentoLojaPeriodo) : metaLojaPeriodoAlvo ).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="border-none shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -542,11 +847,9 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           )}
-        </>
-      )}
 
-      {/* Gráficos (apenas para quem pode ver custos) */}
-      {podVerCustos && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Gráficos (apenas para quem pode ver custos) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         <Card className="border-none shadow-lg">
           <CardHeader>
             <CardTitle className="text-lg">Vendas dos Últimos {dateRange} Dias</CardTitle>
@@ -612,10 +915,10 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      </div>}
+      </div>
 
       {/* Top Vendedores e Produtos */}
-      {podVerCustos && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="border-none shadow-lg">
           <CardHeader>
             <CardTitle className="text-lg">Top Vendedores - {getNomePeriodo()}</CardTitle>
@@ -670,7 +973,59 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-      </div>}
+      </div>
+    </>
+  )}
+
+      {/* Modal de Aniversariantes */}
+      <Dialog open={dialogAniversariantes} onOpenChange={setDialogAniversariantes}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl font-bold text-pink-600">
+              <PartyPopper className="w-6 h-6" />
+              Aniversariantes de Hoje
+            </DialogTitle>
+            <DialogDescription>
+              Veja quem está fazendo aniversário hoje e envie uma mensagem especial!
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto px-1">
+            {aniversariantesHoje.map((cliente) => (
+              <div key={cliente.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-pink-200 transition-colors">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center text-pink-600 font-bold text-lg">
+                    {cliente.nome_completo?.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900">{cliente.nome_completo}</p>
+                    <p className="text-xs text-slate-500">{cliente.telefone1}</p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const msg = `Olá ${cliente.nome_completo.split(' ')[0]}, tudo bem? Aqui é da SmartExpress! Passando para te desejar um feliz aniversário e muita saúde! 🎉🎂`;
+                    const fone = cliente.telefone1.replace(/\D/g, '');
+                    window.open(`https://wa.me/55${fone}?text=${encodeURIComponent(msg)}`, '_blank');
+                  }}
+                  className="border-green-500 text-green-600 hover:bg-green-50"
+                >
+                  <Phone className="w-4 h-4 mr-2" />
+                  Parabéns
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setDialogAniversariantes(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

@@ -55,7 +55,7 @@ export default function Categorias() {
     queryKey: ['categorias', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Categoria.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
-      : base44.entities.Categoria.list('nome'),
+      : lojaFiltroId ? base44.entities.Categoria.filter({ loja_id: lojaFiltroId }, { order: 'nome' }) : base44.entities.Categoria.list('nome'),
   });
 
   const createMutation = useMutation({
@@ -64,7 +64,7 @@ export default function Categorias() {
       return base44.entities.Categoria.create(dataWithLoja);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categorias'] });
+      queryClient.invalidateQueries({ queryKey: ['categorias', lojaFiltroId] });
       toast.success("Categoria cadastrada!");
       setDialogCategoria(false);
       resetForm();
@@ -74,7 +74,7 @@ export default function Categorias() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Categoria.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categorias'] });
+      queryClient.invalidateQueries({ queryKey: ['categorias', lojaFiltroId] });
       toast.success("Categoria atualizada!");
       setDialogCategoria(false);
       setEditingCategoria(null);
@@ -85,7 +85,7 @@ export default function Categorias() {
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Categoria.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['categorias'] });
+      queryClient.invalidateQueries({ queryKey: ['categorias', lojaFiltroId] });
       toast.success("Categoria excluída!");
     },
     onError: (error) => {

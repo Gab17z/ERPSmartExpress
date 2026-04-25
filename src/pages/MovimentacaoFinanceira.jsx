@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowUpCircle, ArrowDownCircle, ChevronLeft, ChevronRight } from "lucide-react";
@@ -9,6 +10,7 @@ import { format, isWithinInterval, parseISO, startOfMonth, startOfDay, endOfDay 
 import DateRangeFilter from "@/components/DateRangeFilter";
 
 export default function MovimentacaoFinanceira() {
+  const { lojaFiltroId } = useLoja();
   const hoje = new Date();
   const [filtro, setFiltro] = useState({
     dataInicio: format(startOfMonth(hoje), 'yyyy-MM-dd'),
@@ -29,15 +31,19 @@ export default function MovimentacaoFinanceira() {
   };
 
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list('-created_date', 200),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.Venda.list('-created_date'),
   });
 
   const { data: contasPagar = [] } = useQuery({
-    queryKey: ['contas-pagar'],
+    queryKey: ['contas-pagar', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.ContaPagar.list('-created_date', 200);
+        return lojaFiltroId
+          ? await base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+          : await base44.entities.ContaPagar.list('-created_date');
       } catch {
         return [];
       }
@@ -45,10 +51,12 @@ export default function MovimentacaoFinanceira() {
   });
 
   const { data: comissoes = [] } = useQuery({
-    queryKey: ['comissoes'],
+    queryKey: ['comissoes', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.Comissao.list('-data_pagamento', 200);
+        return lojaFiltroId
+          ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }, { order: '-data_pagamento' })
+          : await base44.entities.Comissao.list('-data_pagamento');
       } catch {
         return [];
       }
@@ -56,10 +64,12 @@ export default function MovimentacaoFinanceira() {
   });
 
   const { data: movimentacoesCaixa = [] } = useQuery({
-    queryKey: ['movimentacoes-caixa'],
+    queryKey: ['movimentacoes-caixa', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.MovimentacaoCaixa.list('-created_date', 500);
+        return lojaFiltroId
+          ? await base44.entities.MovimentacaoCaixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+          : await base44.entities.MovimentacaoCaixa.list('-created_date');
       } catch {
         return [];
       }

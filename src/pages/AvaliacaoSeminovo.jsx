@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLoja } from "@/contexts/LojaContext";;
 import { base44 } from "@/api/base44Client";
 import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -72,6 +73,7 @@ const CAPACIDADES_DISPONIVEIS = [
 ];
 
 export default function AvaliacaoSeminovo() {
+  const { lojaFiltroId } = useLoja();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [dialogAvaliacao, setDialogAvaliacao] = useState(false);
@@ -161,13 +163,13 @@ export default function AvaliacaoSeminovo() {
   }, []);
 
   const { data: avaliacoes = [] } = useQuery({
-    queryKey: ['avaliacoes'],
-    queryFn: () => base44.entities.AvaliacaoSeminovo.list('-created_date'),
+    queryKey: ['avaliacoes', lojaFiltroId],
+    queryFn: () => lojaFiltroId ? base44.entities.AvaliacaoSeminovo.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : base44.entities.AvaliacaoSeminovo.list('-created_date'),
   });
 
   const { data: clientes = [] } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: () => base44.entities.Cliente.list('nome_completo'),
+    queryKey: ['clientes', lojaFiltroId],
+    queryFn: () => lojaFiltroId ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: 'nome_completo' }) : base44.entities.Cliente.list('nome_completo'),
   });
 
   const criarClienteMutation = useMutation({
@@ -176,7 +178,7 @@ export default function AvaliacaoSeminovo() {
       ativo: true
     }),
     onSuccess: (cliente) => {
-      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      queryClient.invalidateQueries({ queryKey: ['clientes', lojaFiltroId] });
       setFormData(prev => ({ ...prev, cliente_id: cliente.id }));
       setDialogNovoCliente(false);
       toast.success("Cliente cadastrado!");
@@ -223,7 +225,7 @@ export default function AvaliacaoSeminovo() {
       // Buscar e incrementar número sequencial
       let proximoNumero = 1;
       try {
-        const configs = await base44.entities.Configuracao.list();
+        const configs = lojaFiltroId ? await base44.entities.Configuracao.filter({ loja_id: lojaFiltroId }) : await base44.entities.Configuracao.list();
         const configAV = configs.find(c => c.chave === 'ultimo_numero_avaliacao');
         
         if (configAV) {
@@ -269,7 +271,7 @@ export default function AvaliacaoSeminovo() {
       });
     },
     onSuccess: (avaliacao) => {
-      queryClient.invalidateQueries({ queryKey: ['avaliacoes'] });
+      queryClient.invalidateQueries({ queryKey: ['avaliacoes', lojaFiltroId] });
       setAvaliacaoAtual(avaliacao);
       setDialogAvaliacao(false);
       setDialogResultado(true);
@@ -1317,7 +1319,7 @@ export default function AvaliacaoSeminovo() {
                       status: "recusada"
                     });
                     setDialogResultado(false);
-                    queryClient.invalidateQueries({ queryKey: ['avaliacoes'] });
+                    queryClient.invalidateQueries({ queryKey: ['avaliacoes', lojaFiltroId] });
                   }}
                 >
                   Cliente Recusou
@@ -1330,7 +1332,7 @@ export default function AvaliacaoSeminovo() {
                       status: "aceita"
                     });
                     setDialogResultado(false);
-                    queryClient.invalidateQueries({ queryKey: ['avaliacoes'] });
+                    queryClient.invalidateQueries({ queryKey: ['avaliacoes', lojaFiltroId] });
                     toast.success("Oferta aceita!");
                   }}
                 >

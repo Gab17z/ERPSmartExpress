@@ -98,13 +98,17 @@ export default function Financeiro() {
   });
 
   const { data: movimentacoes = [] } = useQuery({
-    queryKey: ['movimentacoes'],
-    queryFn: () => base44.entities.MovimentacaoCaixa.list('-created_date'),
+    queryKey: ['movimentacoes', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.MovimentacaoCaixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.MovimentacaoCaixa.list('-created_date'),
   });
 
   const { data: contasBancarias = [] } = useQuery({
-    queryKey: ['contas-bancarias'],
-    queryFn: () => base44.entities.ContaBancaria.list(),
+    queryKey: ['contas-bancarias', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.ContaBancaria.filter({ loja_id: lojaFiltroId })
+      : base44.entities.ContaBancaria.list(),
   });
 
   const { data: caixas = [] } = useQuery({
@@ -115,10 +119,12 @@ export default function Financeiro() {
   });
 
   const { data: devolucoes = [] } = useQuery({
-    queryKey: ['devolucoes'],
+    queryKey: ['devolucoes', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.Devolucao.list();
+        return lojaFiltroId
+          ? await base44.entities.Devolucao.filter({ loja_id: lojaFiltroId })
+          : await base44.entities.Devolucao.list();
       } catch {
         return [];
       }

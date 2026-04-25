@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,6 +91,7 @@ const CONFIG_PADRAO = {
 };
 
 export default function ChatbotConfig() {
+  const { lojaFiltroId } = useLoja();
   const queryClient = useQueryClient();
   const [config, setConfig] = useState(CONFIG_PADRAO);
   const [dialogMenu, setDialogMenu] = useState(false);
@@ -104,9 +106,11 @@ export default function ChatbotConfig() {
   const [isSaving, setIsSaving] = useState(false);
 
   const { data: configSalva, isLoading } = useQuery({
-    queryKey: ['chatbot-config'],
+    queryKey: ['chatbot-config', lojaFiltroId],
     queryFn: async () => {
-      const configs = await base44.entities.ChatbotConfig.list();
+      const configs = lojaFiltroId
+        ? await base44.entities.ChatbotConfig.filter({ loja_id: lojaFiltroId })
+        : await base44.entities.ChatbotConfig.list();
       return configs[0] || null;
     }
   });
@@ -139,10 +143,11 @@ export default function ChatbotConfig() {
 
   const salvarMutation = useMutation({
     mutationFn: async (dados) => {
+      const dadosComLoja = { ...dados, loja_id: lojaFiltroId || null };
       if (configSalva?.id) {
-        return base44.entities.ChatbotConfig.update(configSalva.id, dados);
+        return base44.entities.ChatbotConfig.update(configSalva.id, dadosComLoja);
       } else {
-        return base44.entities.ChatbotConfig.create(dados);
+        return base44.entities.ChatbotConfig.create(dadosComLoja);
       }
     },
     onSuccess: () => {

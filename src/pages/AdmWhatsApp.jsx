@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLoja } from "@/contexts/LojaContext";;
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { io } from "socket.io-client";
@@ -110,6 +111,7 @@ const CATEGORIAS = [
 ];
 
 export default function AdmWhatsApp() {
+  const { lojaFiltroId } = useLoja();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [conversaSelecionada, setConversaSelecionada] = useState(null);
@@ -663,7 +665,7 @@ export default function AdmWhatsApp() {
   // Buscar conversas do banco de dados
   const { data: conversasBanco = [], isLoading: loadingConversasBanco } = useQuery({
     queryKey: ['conversas-banco'],
-    queryFn: () => base44.entities.ConversaWhatsApp.list('-ultima_mensagem_data'),
+    queryFn: () => lojaFiltroId ? base44.entities.ConversaWhatsApp.filter({ loja_id: lojaFiltroId }, { order: '-ultima_mensagem_data' }) : base44.entities.ConversaWhatsApp.list('-ultima_mensagem_data'),
     staleTime: 60000
   });
 
@@ -731,20 +733,20 @@ export default function AdmWhatsApp() {
 
   const { data: pastas = [] } = useQuery({
     queryKey: ['pastas-whatsapp'],
-    queryFn: () => base44.entities.PastaWhatsApp.list('ordem'),
+    queryFn: () => lojaFiltroId ? base44.entities.PastaWhatsApp.filter({ loja_id: lojaFiltroId }, { order: 'ordem' }) : base44.entities.PastaWhatsApp.list('ordem'),
     staleTime: 60000
   });
 
   const { data: etiquetas = [] } = useQuery({
     queryKey: ['etiquetas-whatsapp'],
-    queryFn: () => base44.entities.EtiquetaWhatsApp.list('nome'),
+    queryFn: () => lojaFiltroId ? base44.entities.EtiquetaWhatsApp.filter({ loja_id: lojaFiltroId }, { order: 'nome' }) : base44.entities.EtiquetaWhatsApp.list('nome'),
     staleTime: 60000
   });
 
   const { data: configWpp } = useQuery({
     queryKey: ['config-whatsapp'],
     queryFn: async () => {
-      const configs = await base44.entities.ConfigWhatsApp.list();
+      const configs = lojaFiltroId ? await base44.entities.ConfigWhatsApp.filter({ loja_id: lojaFiltroId }) : await base44.entities.ConfigWhatsApp.list();
       return configs[0] || null;
     },
     staleTime: 60000
@@ -753,7 +755,7 @@ export default function AdmWhatsApp() {
   const { data: chatbotConfig } = useQuery({
     queryKey: ['chatbot-config'],
     queryFn: async () => {
-      const configs = await base44.entities.ChatbotConfig.list();
+      const configs = lojaFiltroId ? await base44.entities.ChatbotConfig.filter({ loja_id: lojaFiltroId }) : await base44.entities.ChatbotConfig.list();
       return configs[0] || null;
     },
     staleTime: 30000
@@ -761,8 +763,8 @@ export default function AdmWhatsApp() {
 
   // Query para buscar todos os clientes (para verificar se contato é cliente)
   const { data: clientes = [] } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: () => base44.entities.Cliente.list(),
+    queryKey: ['clientes', lojaFiltroId],
+    queryFn: () => lojaFiltroId ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }) : base44.entities.Cliente.list(),
     staleTime: 60000
   });
 
@@ -927,7 +929,7 @@ export default function AdmWhatsApp() {
   const salvarConfigMutation = useMutation({
     mutationFn: async (dados) => {
       // Sempre buscar o registro existente primeiro para evitar duplicados
-      const configs = await base44.entities.ConfigWhatsApp.list();
+      const configs = lojaFiltroId ? await base44.entities.ConfigWhatsApp.filter({ loja_id: lojaFiltroId }) : await base44.entities.ConfigWhatsApp.list();
       const existingConfig = configs[0];
 
       if (existingConfig?.id) {

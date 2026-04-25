@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FileText, TrendingUp, DollarSign } from "lucide-react";
@@ -8,6 +9,7 @@ import { format, isWithinInterval, parseISO, startOfMonth } from "date-fns";
 import DateRangeFilter from "@/components/DateRangeFilter";
 
 export default function RelatorioFiscal() {
+  const { lojaFiltroId } = useLoja();
   const hoje = new Date();
   const [filtro, setFiltro] = useState({
     dataInicio: format(hoje, 'yyyy-MM-dd'),
@@ -25,8 +27,10 @@ export default function RelatorioFiscal() {
   };
 
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list('-data_venda'),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId })
+      : lojaFiltroId ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-data_venda' }) : base44.entities.Venda.list('-data_venda'),
   });
 
   const vendasFinalizadas = vendas.filter(v => v.status === 'finalizada' && filtrarPorData(v.created_date));

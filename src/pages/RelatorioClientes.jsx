@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -18,6 +19,7 @@ import { exportToPDF } from "@/utils/pdfExport";
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 export default function RelatorioClientes() {
+  const { lojaFiltroId } = useLoja();
   const hoje = new Date();
   const [filtro, setFiltro] = useState({
     dataInicio: format(new Date(hoje.getFullYear(), hoje.getMonth(), 1), 'yyyy-MM-dd'),
@@ -28,18 +30,24 @@ export default function RelatorioClientes() {
   const [filtroFonte, setFiltroFonte] = useState("todos");
 
   const { data: clientes = [] } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: () => base44.entities.Cliente.list(),
+    queryKey: ['clientes', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId })
+      : lojaFiltroId ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }) : base44.entities.Cliente.list(),
   });
 
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list(),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId })
+      : lojaFiltroId ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }) : base44.entities.Venda.list(),
   });
 
   const { data: ordensServico = [] } = useQuery({
-    queryKey: ['ordens-servico'],
-    queryFn: () => base44.entities.OrdemServico.list(),
+    queryKey: ['ordens-servico', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId })
+      : lojaFiltroId ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId }) : base44.entities.OrdemServico.list(),
   });
 
   const filtrarPorData = (data) => {

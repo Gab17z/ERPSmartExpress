@@ -3,6 +3,8 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useLoja } from "@/contexts/LojaContext";
 import {
   Popover,
   PopoverContent,
@@ -36,12 +38,24 @@ export default function NotificacoesRealTime() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const { lojaFiltroId } = useLoja();
+  const { user } = useAuth();
 
-  // Buscar notificações
+  // Buscar notificações filtradas por loja
   const { data: notificacoes = [], refetch } = useQuery({
-    queryKey: ['notificacoes'],
-    queryFn: () => base44.entities.Notificacao.list('-created_date', 50),
-    refetchInterval: 30000 // Atualizar a cada 30 segundos
+    queryKey: ['notificacoes', lojaFiltroId],
+    queryFn: async () => {
+      try {
+        if (lojaFiltroId) {
+          return await base44.entities.Notificacao.filter({ loja_id: lojaFiltroId }, { order: '-created_date', limit: 50 });
+        }
+        return await base44.entities.Notificacao.list('-created_date', 50);
+      } catch (error) {
+        console.warn("Aviso: Notificações indisponíveis no momento.");
+        return [];
+      }
+    },
+    refetchInterval: 60000 // Atualizar a cada 1 minuto (menos carga)
   });
 
   // Marcar como lida
@@ -71,62 +85,76 @@ export default function NotificacoesRealTime() {
     }
   };
 
-  // Gerar notificações automáticas (verificar a cada 2 minutos)
+  // Gerar notificações automáticas (verificar a cada 5 minutos)
   useEffect(() => {
     const gerarNotificacoes = async () => {
+      if (!lojaFiltroId) return;
+      
       try {
-        const produtos = await base44.entities.Produto.list();
-        const produtosBaixoEstoque = produtos.filter(p => p.estoque_atual <= p.estoque_minimo && p.ativo);
+        // 1. Verificar estoque
+        const produtos = await base44.entities.Produto.filter({ loja_id: lojaFiltroId });
+        const produtosBaixoEstoque = produtos.filter(p => (parseFloat(p.estoque_atual) || 0) <= (parseFloat(p.estoque_minimo) || 0) && p.ativo && (parseFloat(p.estoque_minimo) || 0) > 0);
         
+        // Buscar notificações atuais para checar duplicatas
+        const notifsAtuais = await base44.entities.Notificacao.filter({ 
+          loja_id: lojaFiltroId,
+          tipo: 'estoque_baixo',
+          lida: false
+        });
+
         if (produtosBaixoEstoque.length > 0) {
-          // Verificar se já existe notificação recente
-          const notifExistente = notificacoes.find(n => 
-            n.tipo === 'estoque_baixo' && 
-            !n.lida && 
-            new Date(n.created_date) > new Date(Date.now() - 3600000) // Última hora
+          // Só cria se não houver nenhuma não lida de estoque baixo criada na última hora
+          const jaTemNotifRecente = notifsAtuais.some(n => 
+            new Date(n.created_date) > new Date(Date.now() - 3600000)
           );
 
-          if (!notifExistente) {
+          if (!jaTemNotifRecente) {
             await base44.entities.Notificacao.create({
               tipo: 'estoque_baixo',
               titulo: 'Estoque Baixo',
-              mensagem: `${produtosBaixoEstoque.length} produto(s) com estoque baixo`,
-              link: createPageUrl('Produtos')
+              mensagem: `${produtosBaixoEstoque.length} produto(s) com estoque baixo na loja`,
+              link: createPageUrl('Produtos'),
+              loja_id: lojaFiltroId
             });
             refetch();
           }
         }
 
-        const os = await base44.entities.OrdemServico.list();
-        const osProntas = os.filter(o => o.status === 'pronto');
+        // 2. Verificar OS Prontas
+        const os = await base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId, status: 'pronto' });
         
-        if (osProntas.length > 0) {
-          const notifExistente = notificacoes.find(n => 
-            n.tipo === 'os_pronta' && 
-            !n.lida && 
+        if (os.length > 0) {
+          const notifsOS = await base44.entities.Notificacao.filter({ 
+            loja_id: lojaFiltroId,
+            tipo: 'os_pronta',
+            lida: false
+          });
+
+          const jaTemNotifOS = notifsOS.some(n => 
             new Date(n.created_date) > new Date(Date.now() - 3600000)
           );
 
-          if (!notifExistente) {
+          if (!jaTemNotifOS) {
             await base44.entities.Notificacao.create({
               tipo: 'os_pronta',
               titulo: 'OS Prontas',
-              mensagem: `${osProntas.length} ordem(ns) de serviço pronta(s) para entrega`,
-              link: createPageUrl('OrdensServico')
+              mensagem: `${os.length} ordem(ns) de serviço pronta(s) para entrega`,
+              link: createPageUrl('OrdensServico'),
+              loja_id: lojaFiltroId
             });
             refetch();
           }
         }
       } catch (error) {
-        console.error("Erro ao gerar notificações:", error);
+        console.error("Erro ao gerar notificações automáticas:", error);
       }
     };
 
-    const interval = setInterval(gerarNotificacoes, 120000); // A cada 2 minutos
-    gerarNotificacoes(); // Executar imediatamente
+    const interval = setInterval(gerarNotificacoes, 300000); // A cada 5 minutos
+    gerarNotificacoes(); 
 
     return () => clearInterval(interval);
-  }, [notificacoes, refetch]);
+  }, [lojaFiltroId, refetch]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

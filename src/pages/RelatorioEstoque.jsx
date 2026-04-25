@@ -1,6 +1,7 @@
 import React from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -11,15 +12,20 @@ import { toast } from "sonner";
 import { exportToPDF } from "@/utils/pdfExport";
 
 export default function RelatorioEstoque() {
+  const { lojaFiltroId } = useLoja();
   const { data: produtos = [] } = useQuery({
-    queryKey: ['produtos'],
-    queryFn: () => base44.entities.Produto.list(),
+    queryKey: ['produtos', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Produto.filter({ loja_id: lojaFiltroId })
+      : lojaFiltroId ? base44.entities.Produto.filter({ loja_id: lojaFiltroId }) : base44.entities.Produto.list(),
     refetchInterval: 30000
   });
 
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list('-created_date'),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId })
+      : lojaFiltroId ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : base44.entities.Venda.list('-created_date'),
     refetchInterval: 30000
   });
 

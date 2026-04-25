@@ -79,6 +79,8 @@ class Entity {
         for (const [key, value] of Object.entries(options.filters)) {
           if (Array.isArray(value)) {
             query = query.in(key, value);
+          } else if (value === null) {
+            query = query.is(key, null);
           } else {
             query = query.eq(key, value);
           }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { useLoja } from "@/contexts/LojaContext";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
@@ -7,11 +8,14 @@ import { TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export default function Previsoes() {
+  const { lojaFiltroId } = useLoja();
   const [previsoes, setPrevisoes] = useState([]);
 
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas-previsao'],
-    queryFn: () => base44.entities.Venda.list('-created_date', 365),
+    queryKey: ['vendas-previsao', lojaFiltroId],
+    queryFn: () => lojaFiltroId 
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date', limit: 365 })
+      : base44.entities.Venda.list('-created_date', 365),
   });
 
   useEffect(() => {

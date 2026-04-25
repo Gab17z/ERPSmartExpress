@@ -14,6 +14,7 @@ import DateRangeFilter from "@/components/DateRangeFilter";
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
 export default function CentroCustos() {
+  const { lojaFiltroId } = useLoja();
   const hoje = new Date();
   const [filtro, setFiltro] = useState({
     dataInicio: format(startOfMonth(hoje), 'yyyy-MM-dd'),
@@ -36,10 +37,12 @@ export default function CentroCustos() {
   };
 
   const { data: contasPagar = [] } = useQuery({
-    queryKey: ['contas-pagar'],
+    queryKey: ['contas-pagar', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.ContaPagar.list('-created_date');
+        return lojaFiltroId
+          ? await base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+          : lojaFiltroId ? await base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : await base44.entities.ContaPagar.list('-created_date');
       } catch {
         return [];
       }
@@ -47,10 +50,12 @@ export default function CentroCustos() {
   });
 
   const { data: comissoes = [] } = useQuery({
-    queryKey: ['comissoes'],
+    queryKey: ['comissoes', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.Comissao.list('-created_date');
+        return lojaFiltroId
+          ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+          : lojaFiltroId ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : await base44.entities.Comissao.list('-created_date');
       } catch {
         return [];
       }

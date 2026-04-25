@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,7 @@ import {
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 export default function Comissoes() {
+  const { lojaFiltroId } = useLoja();
   const hoje = new Date();
   const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
   const [filtro, setFiltro] = useState({
@@ -56,16 +58,20 @@ export default function Comissoes() {
   const queryClient = useQueryClient();
 
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list(),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId })
+      : lojaFiltroId ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }) : base44.entities.Venda.list(),
     refetchInterval: 30000
   });
 
   const { data: comissoes = [] } = useQuery({
-    queryKey: ['comissoes'],
+    queryKey: ['comissoes', lojaFiltroId],
     queryFn: async () => {
       try {
-        return await base44.entities.Comissao.list('-created_date');
+        return lojaFiltroId
+          ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+          : lojaFiltroId ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : await base44.entities.Comissao.list('-created_date');
       } catch {
         return [];
       }
@@ -74,8 +80,10 @@ export default function Comissoes() {
   });
 
   const { data: usuariosSistema = [] } = useQuery({
-    queryKey: ['usuarios-sistema'],
-    queryFn: () => base44.entities.UsuarioSistema.list(),
+    queryKey: ['usuarios-sistema', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId })
+      : lojaFiltroId ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId }) : base44.entities.UsuarioSistema.list(),
   });
 
   const pagarComissaoMutation = useMutation({
@@ -84,7 +92,7 @@ export default function Comissoes() {
       data_pagamento: new Date().toISOString()
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['comissoes'] });
+      queryClient.invalidateQueries({ queryKey: ['comissoes', lojaFiltroId] });
       toast.success("Comissão paga!");
     },
   });

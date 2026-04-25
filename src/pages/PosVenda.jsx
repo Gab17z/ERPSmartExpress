@@ -10,21 +10,27 @@ import { Clock, AlertTriangle, Phone, MessageSquare, Mail, TrendingDown, Calenda
 import { toast } from "sonner";
 import { format, differenceInDays, parseISO, isValid } from "date-fns";
 import ClienteHistorico from "@/components/marketing/ClienteHistorico";
+import { useLoja } from "@/contexts/LojaContext";
 
 export default function PosVenda() {
+  const { lojaFiltroId } = useLoja();
   const [searchTerm, setSearchTerm] = useState("");
   const [filtroInatividade, setFiltroInatividade] = useState("todos");
   const [clienteSelecionado, setClienteSelecionado] = useState(null);
   const [dialogHistorico, setDialogHistorico] = useState(false);
 
   const { data: clientes = [] } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: () => base44.entities.Cliente.list('nome_completo'),
+    queryKey: ['clientes', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: 'nome_completo' })
+      : base44.entities.Cliente.list('nome_completo'),
   });
 
   const { data: vendas = [] } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list('-data_venda'),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-data_venda' })
+      : base44.entities.Venda.list('-data_venda'),
   });
 
   const clientesComUltimaCompra = useMemo(() => {

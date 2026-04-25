@@ -21,12 +21,9 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
   const [dialogDetalhes, setDialogDetalhes] = useState(false);
   const [dialogAuditoria, setDialogAuditoria] = useState(false);
   const [selectedAudit, setSelectedAudit] = useState({ title: '', items: [], type: '' });
-  const isAdmin = user?.cargo?.nome?.toLowerCase().includes('admin') || 
-                 (typeof user?.cargo === 'string' && user?.cargo?.toLowerCase().includes('admin')) || 
-                 user?.permissoes?.administrador_sistema === true ||
-                 user?.permissoes?.gerenciar_metas === true ||
-                 user?.cargo_id === 'admin' || // Fallback para ID fixo se houver
-                 user?.id === 'admin';
+  const isAdmin = user?.permissoes?.administrador_sistema === true ||
+                 user?.cargo?.nome?.toLowerCase() === 'administrador' ||
+                 (typeof user?.cargo === 'string' && user?.cargo?.toLowerCase() === 'administrador');
   const [metasConfig, setMetasConfig] = useState({
     vendas_loja: 50000,
     os_loja: 100,
@@ -44,25 +41,31 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
 
   const { lojaFiltroId } = useLoja();
 
-  const { data: vendas = [] } = useQuery({
+  const { data: vendas = [], refetch: refetchVendas } = useQuery({
     queryKey: ['vendas', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-data_venda' })
       : base44.entities.Venda.list('-data_venda'),
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always'
   });
 
-  const { data: os = [] } = useQuery({
+  const { data: os = [], refetch: refetchOS } = useQuery({
     queryKey: ['os', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
       : base44.entities.OrdemServico.list('-created_date'),
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always'
   });
 
-  const { data: clientes = [] } = useQuery({
+  const { data: clientes = [], refetch: refetchClientes } = useQuery({
     queryKey: ['clientes', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
       : base44.entities.Cliente.list('-created_date'),
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always'
   });
 
   const { data: usuariosSistema = [] } = useQuery({
@@ -75,7 +78,12 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
   const { data: devolucoes = [] } = useQuery({
     queryKey: ['devolucoes'],
     queryFn: async () => {
-      try { return await base44.entities.Devolucao.list(); } catch { return []; }
+      try {
+        // devolucao não tem coluna loja_id - busca global e filtra via venda_id em memória
+        return await base44.entities.Devolucao.list();
+      } catch {
+        return [];
+      }
     },
   });
 
@@ -98,6 +106,45 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
     queryFn: () => lojaFiltroId
       ? base44.entities.Produto.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
       : base44.entities.Produto.list('nome'),
+  });
+
+  // CARREGAR METAS DO BANCO DE DADOS (NUVEM)
+  const { data: metasDb, refetch: refetchMetas } = useQuery({
+    queryKey: ['metas-sistema-db', lojaFiltroId],
+    queryFn: async () => {
+      try {
+        // 1. Tentar buscar por loja específica
+        let configs = [];
+        if (lojaFiltroId) {
+          configs = await base44.entities.Configuracao.filter({ 
+            chave: 'metas_sistema',
+            loja_id: lojaFiltroId
+          });
+        }
+        
+        // 2. Se não encontrar ou não tiver lojaId, tentar buscar global (loja_id null)
+        if (configs.length === 0) {
+          configs = await base44.entities.Configuracao.filter({ 
+            chave: 'metas_sistema',
+            loja_id: null
+          });
+        }
+        
+        // 3. Se ainda não encontrar, tentar buscar a primeira disponível (segurança)
+        if (configs.length === 0) {
+          configs = await base44.entities.Configuracao.filter({ 
+            chave: 'metas_sistema'
+          });
+        }
+
+        return configs[0] || null;
+      } catch (error) {
+        console.error("Erro ao buscar metas do banco:", error);
+        return null;
+      }
+    },
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always'
   });
 
   const categoriasMap = React.useMemo(() => {
@@ -136,9 +183,23 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
 
   React.useEffect(() => {
     try {
-      const metasSalvas = localStorage.getItem('metas_sistema');
-      if (metasSalvas) {
-        const parsed = JSON.parse(metasSalvas);
+      // Prioridade 1: Dados do Banco (Nuvem)
+      // Prioridade 2: Dados do LocalStorage (Legado/Local)
+      const metasNuvem = metasDb?.valor;
+      const metasLocais = localStorage.getItem('metas_sistema');
+      
+      let parsed = null;
+      if (metasNuvem) {
+        parsed = metasNuvem;
+      } else if (metasLocais) {
+        try {
+          parsed = JSON.parse(metasLocais);
+        } catch {
+          parsed = null;
+        }
+      }
+
+      if (parsed) {
         setMetasConfig({
           vendas_loja: Math.max(1, parsed.vendas_loja || 50000),
           os_loja: Math.max(1, parsed.os_loja || 100),
@@ -161,17 +222,47 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
         });
       }
     } catch (error) {
-      console.error("Erro ao carregar metas do localStorage:", error);
+      console.error("Erro ao carregar metas:", error);
     }
-  }, []);
+  }, [metasDb]);
 
-  const salvarMetas = () => {
-    localStorage.setItem('metas_sistema', JSON.stringify(metasConfig));
-    toast.success("Metas atualizadas!");
-    setDialogMetas(false);
-    setTimeout(() => {
-      window.location.reload();
-    }, 1000);
+  const salvarMetas = async () => {
+    try {
+      // 1. Salvar no Banco de Dados (Nuvem)
+      if (lojaFiltroId) {
+        if (metasDb?.id) {
+          // Atualizar existente
+          await base44.entities.Configuracao.update(metasDb.id, {
+            valor: metasConfig,
+            updated_date: new Date().toISOString()
+          });
+        } else {
+          // Criar novo
+          await base44.entities.Configuracao.create({
+            chave: 'metas_sistema',
+            valor: metasConfig,
+            loja_id: lojaFiltroId,
+            descricao: 'Configuração de metas e performance da loja'
+          });
+        }
+      }
+
+      // 2. Salvar no LocalStorage (Fallback)
+      localStorage.setItem('metas_sistema', JSON.stringify(metasConfig));
+      
+      toast.success("Metas sincronizadas na nuvem!");
+      setDialogMetas(false);
+      
+      // Invalida a query para recarregar
+      queryClient.invalidateQueries({ queryKey: ['metas-sistema-db', lojaFiltroId] });
+      
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (error) {
+      console.error("Erro ao salvar metas:", error);
+      toast.error("Erro ao salvar metas no banco de dados");
+    }
   };
 
 
@@ -242,6 +333,10 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
     return false;
   };
 
+   const trintaDiasAtras = new Date();
+  trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);
+  trintaDiasAtras.setHours(0, 0, 0, 0);
+
   const vendasMes = vendas.filter(v => {
     const dataVenda = parseSafeDate(v.data_venda);
     if (filtro) {
@@ -249,8 +344,8 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
       const fim = new Date(`${filtro.dataFim}T23:59:59`);
       if (dataVenda < inicio || dataVenda > fim) return false;
     } else {
-      const mesmoMes = dataVenda.getMonth() === mesAtual && dataVenda.getFullYear() === anoAtual;
-      if (!mesmoMes) return false;
+      // REGRA: 30 dias corridos
+      if (dataVenda < trintaDiasAtras) return false;
     }
     
     if (!filterByUser(v, ['vendedor_id', 'usuario_id'], ['vendedor_nome'])) return false;
@@ -264,8 +359,8 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
       const fim = new Date(`${filtro.dataFim}T23:59:59`);
       if (dataOS < inicio || dataOS > fim) return false;
     } else {
-      const mesmoMes = dataOS.getMonth() === mesAtual && dataOS.getFullYear() === anoAtual;
-      if (!mesmoMes) return false;
+      // REGRA: 30 dias corridos
+      if (dataOS < trintaDiasAtras) return false;
     }
     
     if (!filterByUser(o, ['vendedor_id', 'tecnico_id', 'atendente_id'], ['vendedor_nome', 'atendente_abertura', 'atendente_finalizacao', 'tecnico_responsavel'])) return false;
@@ -279,24 +374,45 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
       const fim = new Date(`${filtro.dataFim}T23:59:59`);
       if (dataC < inicio || dataC > fim) return false;
     } else {
-      const mesmoMes = dataC.getMonth() === mesAtual && dataC.getFullYear() === anoAtual;
-      if (!mesmoMes) return false;
+      // REGRA: 30 dias corridos
+      if (dataC < trintaDiasAtras) return false;
     }
 
     // REGRA 2: Clientes por usuário de CADASTRO (cadastrado_por_id)
-    // FALLBACK: Se o cliente não tem a coluna 'cadastrado_por_id' (banco legado)
-    // vamos considerar o vendedor que fez a PRIMEIRA VENDA para este cliente como o "captador"
-    let cadastradoId = c.cadastrado_por_id || c.usuario_id;
-    let cadastradoNome = c.cadastrado_por_nome || c.atendente_nome;
+    // PRIORIDADE: Coluna direta no banco -> Fallback Primeira Venda -> Fallback Primeira OS
+    let cadastradoId = c.cadastrado_por_id || c.usuario_id || c.created_by_id;
+    let cadastradoNome = c.cadastrado_por_nome || c.atendente_nome || c.created_by;
+    const temAtribuicaoDireta = !!(cadastradoId || cadastradoNome);
 
-    if (!cadastradoId && !cadastradoNome) {
+    if (!temAtribuicaoDireta) {
+      // 1. Tentar por primeira venda
       const primeiraVenda = vendas
         .filter(v => v.cliente_id === c.id)
-        .sort((a, b) => new Date(a.created_date || a.data_venda) - new Date(b.created_date || b.data_venda))[0];
+        .sort((a, b) => {
+          const dateA = new Date(a.created_date || a.data_venda || 0);
+          const dateB = new Date(b.created_date || b.data_venda || 0);
+          return dateA - dateB;
+        })[0];
       
       if (primeiraVenda) {
-        cadastradoId = primeiraVenda.vendedor_id;
-        cadastradoNome = primeiraVenda.vendedor_nome;
+        cadastradoId = primeiraVenda.vendedor_id || primeiraVenda.created_by_id;
+        cadastradoNome = primeiraVenda.vendedor_nome || primeiraVenda.created_by;
+      } else {
+        // 2. Tentar por primeira OS (Caso da Maria Aparecida e outros que não compraram ainda)
+        const primeiraOS = os
+          .filter(o => o.cliente_id === c.id)
+          .sort((a, b) => {
+            const dateA = new Date(a.created_date || a.data_entrada || 0);
+            const dateB = new Date(b.created_date || b.data_entrada || 0);
+            return dateA - dateB;
+          })[0];
+        
+        if (primeiraOS) {
+          cadastradoNome = primeiraOS.atendente_abertura;
+          // Tentar encontrar o ID do usuário pelo nome para garantir o filtro por ID também
+          const userByNome = usuariosSistema.find(u => u.nome?.toLowerCase().trim() === cadastradoNome?.toLowerCase().trim());
+          if (userByNome) cadastradoId = userByNome.user_id || userByNome.id;
+        }
       }
     }
 
@@ -306,55 +422,104 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
       cadastrado_por_nome: cadastradoNome 
     };
 
-    if (!filterByUser(clienteAuditado, ['cadastrado_por_id', 'usuario_id'], ['cadastrado_por_nome', 'atendente_nome'])) return false;
+    if (!filterByUser(clienteAuditado, ['cadastrado_por_id', 'usuario_id', 'created_by_id'], ['cadastrado_por_nome', 'atendente_nome', 'created_by'])) return false;
     return true;
   }); 
 
-  // --- DEFINIÇÃO DE METAS FINAIS (MOVIDO PARA CIMA PARA EVITAR ERRO DE INICIALIZAÇÃO) ---
-  const metaVendasFinal = (isAuditoria || !isAdmin) 
-    ? (metasConfig.individuais?.[targetId]?.vendas || Math.round((metasConfig.vendas_loja || 10000) / Math.max(1, usuariosSistema.length)))
-    : metasConfig.vendas_loja;
+  // --- DEFINIÇÃO DE METAS FINAIS ---
+  const somaMetasIndividuaisVendas = Object.values(metasConfig.individuais || {}).reduce((acc, curr) => acc + (parseFloat(curr.vendas) || 0), 0);
+  const somaMetasIndividuaisOS = Object.values(metasConfig.individuais || {}).reduce((acc, curr) => acc + (parseInt(curr.os) || 0), 0);
+  const somaMetasIndividuaisClientes = Object.values(metasConfig.individuais || {}).reduce((acc, curr) => acc + (parseInt(curr.novos_clientes) || 0), 0);
+  const somaMetasIndividuaisIphoneNovo = Object.values(metasConfig.individuais || {}).reduce((acc, curr) => acc + (parseInt(curr.iphone_novo) || 0), 0);
+  const somaMetasIndividuaisIphoneSemi = Object.values(metasConfig.individuais || {}).reduce((acc, curr) => acc + (parseInt(curr.iphone_seminovo) || 0), 0);
+  const somaMetasIndividuaisAndroid = Object.values(metasConfig.individuais || {}).reduce((acc, curr) => acc + (parseInt(curr.android) || 0), 0);
 
-  const metaOSFinal = (isAuditoria || !isAdmin)
-    ? (metasConfig.individuais?.[targetId]?.os || Math.round((metasConfig.os_loja || 100) / Math.max(1, usuariosSistema.length)))
-    : metasConfig.os_loja;
+  // Helper para buscar meta individual com fallback para vários IDs possíveis
+  const getIndividualMeta = (type, fallback = 0) => {
+    if (!metasConfig.individuais) return fallback;
+    const idsToTry = [
+      targetId, 
+      targetUserId, 
+      user?.usuarioSistema?.user_id, 
+      user?.user_id,
+      targetUserFull?.id,
+      user?.id
+    ].filter(Boolean);
+    
+    for (const id of idsToTry) {
+      if (metasConfig.individuais[id]?.[type] !== undefined && metasConfig.individuais[id]?.[type] !== null) {
+        return metasConfig.individuais[id][type];
+      }
+    }
+    return fallback;
+  };
 
-  const metaTicketFinal = metasConfig.ticket_medio || 0;
+  // Se for auditoria OU se o usuário NÃO for administrador do sistema, mostra a meta individual.
+  // Somente administradores do sistema veem a soma da loja por padrão no dashboard.
+  const isVisualizandoIndividual = isAuditoria || !user?.permissoes?.administrador_sistema;
+
+  const metaVendasFinal = isVisualizandoIndividual
+    ? (getIndividualMeta('vendas', 0) || metasConfig.vendas_loja)
+    : (somaMetasIndividuaisVendas > 0 ? somaMetasIndividuaisVendas : metasConfig.vendas_loja);
+
+  const metaOSFinal = isVisualizandoIndividual
+    ? (getIndividualMeta('os', 0) || metasConfig.os_loja)
+    : (somaMetasIndividuaisOS > 0 ? somaMetasIndividuaisOS : metasConfig.os_loja);
+
+  const metaTicketFinal = isVisualizandoIndividual
+    ? (getIndividualMeta('ticket_medio', 0) || metasConfig.ticket_medio)
+    : metasConfig.ticket_medio;
   
-  const metaClientesFinal = (isAuditoria || !isAdmin)
-    ? Math.round(metasConfig.novos_clientes / Math.max(1, usuariosSistema.length))
-    : metasConfig.novos_clientes;
+  const metaClientesFinal = isVisualizandoIndividual
+    ? (getIndividualMeta('novos_clientes', 0) || metasConfig.novos_clientes)
+    : (somaMetasIndividuaisClientes > 0 ? somaMetasIndividuaisClientes : metasConfig.novos_clientes);
 
-  const metaIphoneNovoFinal = (isAuditoria || !isAdmin) 
-    ? Math.round((metasConfig.iphone_novo || 0) / Math.max(1, usuariosSistema.length))
-    : (metasConfig.iphone_novo || 0);
+  const metaIphoneNovoFinal = isVisualizandoIndividual
+    ? getIndividualMeta('iphone_novo', 0)
+    : (somaMetasIndividuaisIphoneNovo > 0 ? somaMetasIndividuaisIphoneNovo : (metasConfig.iphone_novo || 0));
 
-  const metaIphoneSeminovoFinal = (isAuditoria || !isAdmin)
-    ? Math.round((metasConfig.iphone_seminovo || 0) / Math.max(1, usuariosSistema.length))
-    : (metasConfig.iphone_seminovo || 0);
+  const metaIphoneSeminovoFinal = isVisualizandoIndividual
+    ? getIndividualMeta('iphone_seminovo', 0)
+    : (somaMetasIndividuaisIphoneSemi > 0 ? somaMetasIndividuaisIphoneSemi : (metasConfig.iphone_seminovo || 0));
 
-  const metaAndroidFinal = (isAuditoria || !isAdmin)
-    ? Math.round((metasConfig.android || 0) / Math.max(1, usuariosSistema.length))
-    : (metasConfig.android || 0);
+  const metaAndroidFinal = isVisualizandoIndividual
+    ? getIndividualMeta('android', 0)
+    : (somaMetasIndividuaisAndroid > 0 ? somaMetasIndividuaisAndroid : (metasConfig.android || 0));
 
-  // UNIFICAR ARRAYS PARA EVITAR DIVERGÊNCIA
+  // Aliases para consistência
   const vendasEstemes = vendasMes;
-
   const osEstemes = osMes;
-
   const clientesEstemes = clientesMes;
 
-  const auditData = React.useMemo(() => {
-    return {
-      vendas: [],
-      os: [],
-      clientes: [],
-      iphonesNovos: [],
-      iphonesSeminovos: [],
-      androids: [],
-      metasExtra: {}
-    };
-  }, []); 
+
+  // auditData inicializado com arrays vazios; iphonesNovos/androids são populados no forEach abaixo
+  const auditData = {
+    vendas: vendasEstemes.map(v => ({ 
+      id: v.id, 
+      data: v.data_venda || v.created_date, 
+      titulo: v.codigo_venda || v.codigo || 'Venda', 
+      subtitulo: `${v.cliente_nome || 'Cliente'} - R$ ${(parseFloat(v.valor_total || v.total) || 0).toFixed(2)}`,
+      valor: (parseFloat(v.valor_total || v.total) || 0) - (devolucoesPorVenda[v.id] || 0)
+    })),
+    os: osEstemes.map(o => ({ 
+      id: o.id, 
+      data: o.created_date || o.data_entrada, 
+      titulo: o.codigo_os || o.codigo, 
+      subtitulo: `${o.cliente_nome || 'Cliente'} - ${o.aparelho?.modelo || o.equipamento || 'Equipamento'}`,
+      valor: 1
+    })),
+    clientes: clientesEstemes.map(c => ({ 
+      id: c.id, 
+      data: c.created_date, 
+      titulo: c.nome_completo || c.nome, 
+      subtitulo: `CPF/CNPJ: ${c.cpf_cnpj || 'N/A'}`,
+      valor: 1
+    })),
+    iphonesNovos: [],
+    iphonesSeminovos: [],
+    androids: [],
+    metasExtra: {}
+  };
 
   const totalVendasEstemes = vendasEstemes.reduce((acc, current) => {
     const valorOriginal = parseFloat(current.valor_total) || 0;
@@ -368,13 +533,6 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
   const percentualTicketEstemes = metaTicketFinal > 0 ? (ticketMedioEstemes / metaTicketFinal) * 100 : 0;
   const percentualClientesEstemes = metaClientesFinal > 0 ? (clientesEstemes.length / metaClientesFinal) * 100 : 0;
 
-  // Limpar audit antes de popular
-  auditData.vendas = [];
-  auditData.iphonesNovos = [];
-  auditData.iphonesSeminovos = [];
-  auditData.androids = [];
-  auditData.clientes = clientesEstemes.map(c => ({ id: c.id, data: c.created_date, titulo: c.nome_completo, subtitulo: `CPF/CNPJ: ${c.cpf_cnpj || 'N/A'}` }));
-  auditData.os = osEstemes.map(o => ({ id: o.id, data: o.created_date || o.data_entrada, titulo: o.codigo_os, subtitulo: `${o.cliente_nome} - ${o.aparelho?.modelo || 'Equipamento'}` }));
   const progressoMetasExtrasEstemes = {};
   (metasConfig.metas_extra || []).forEach(m => { 
     progressoMetasExtrasEstemes[m.id] = 0; 
@@ -385,7 +543,6 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
 
   vendasEstemes.forEach(venda => {
     const valorLiquido = Math.max(0, (parseFloat(venda.valor_total) || 0) - (devolucoesPorVenda[venda.id] || 0));
-    auditData.vendas.push({ id: venda.id, data: venda.data_venda, titulo: `Venda #${venda.id}`, subtitulo: venda.cliente_nome || 'Consumidor Final', valor: valorLiquido });
 
     if (valorLiquido > 0) {
       const vendedor = venda.vendedor_nome || 'Sem vendedor';
@@ -512,7 +669,7 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
     { id: 1, nome: "Meta Vendas", icone: Trophy, alcancado: percentualVendasEstemes >= 100, cor: "text-yellow-500", valor: reC.vendas_loja || 0, percent: percentualVendasEstemes, check: `R$ ${totalVendasEstemes.toFixed(0)}/R$ ${metaVendasFinal.toFixed(0)}`, audit: auditData.vendas },
     { id: 2, nome: "Meta OS", icone: Zap, alcancado: percentualOSEstemes >= 100, cor: "text-purple-500", valor: reC.os_loja || 0, percent: percentualOSEstemes, check: `${osEstemes.length}/${metaOSFinal} unid.`, audit: auditData.os },
     { id: 3, nome: "Ticket Médio", icone: Award, alcancado: percentualTicketEstemes >= 100, cor: "text-blue-500", valor: reC.ticket_medio || 0, percent: percentualTicketEstemes, check: `R$ ${ticketMedioEstemes.toFixed(0)}/R$ ${metaTicketFinal.toFixed(0)}`, audit: auditData.vendas },
-    { id: 4, nome: "Novos Clientes", icone: Star, alcancado: percentualClientesEstemes >= 100, cor: "text-green-500", valor: reC.novos_clientes || 0, percent: percentualClientesEstemes, check: `${clientesEstemes.length}/${metaClientesFinal} unid.`, audit: auditData.clientes },
+     { id: 4, nome: "Novos Clientes", icone: Star, alcancado: percentualClientesEstemes >= 100, cor: "text-green-500", valor: reC.novos_clientes || 0, percent: percentualClientesEstemes, check: `${clientesEstemes.length}/${metaClientesFinal} unid.`, audit: auditData.clientes },
     { id: 5, nome: "Meta iPhone Novo", icone: Smartphone, alcancado: pIphoneNovoEstemes >= 100, cor: "text-slate-800", valor: reC.iphone_novo || 0, percent: pIphoneNovoEstemes, check: `${iphonesNovosEstemes}/${metaIphoneNovoFinal} unid.`, audit: auditData.iphonesNovos },
     { id: 6, nome: "Meta iPhone Semi", icone: Smartphone, alcancado: pIphoneSemiEstemes >= 100, cor: "text-blue-400", valor: reC.iphone_seminovo || 0, percent: pIphoneSemiEstemes, check: `${iphonesSeminovosEstemes}/${metaIphoneSeminovoFinal} unid.`, audit: auditData.iphonesSeminovos },
     { id: 7, nome: "Meta Android", icone: Smartphone, alcancado: pAndroidEstemes >= 100, cor: "text-emerald-500", valor: reC.android || 0, percent: pAndroidEstemes, check: `${androidsEstemes}/${metaAndroidFinal} unid.`, audit: auditData.androids },
@@ -877,8 +1034,8 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
                         </td>
                         <td className="p-3 text-right font-bold text-slate-900">
                           {selectedAudit.type === 'valor' 
-                            ? `R$ ${parseFloat(item.valor).toFixed(2)}` 
-                            : `${item.valor || 1} un.`}
+                            ? `R$ ${(parseFloat(item.valor) || 0).toFixed(2)}` 
+                            : `${parseInt(item.valor) || 1} un.`}
                         </td>
                       </tr>
                     ))}
@@ -907,22 +1064,40 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
             <DialogTitle>Configurar Metas Mensais</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Meta de Vendas (R$)</Label>
-              <Input
-                type="number"
-                value={metasConfig.vendas_loja}
-                onChange={(e) => setMetasConfig({...metasConfig, vendas_loja: parseFloat(e.target.value) || 0})}
-              />
-            </div>
-            <div>
-              <Label>Meta de OS (Quantidade)</Label>
-              <Input
-                type="number"
-                value={metasConfig.os_loja}
-                onChange={(e) => setMetasConfig({...metasConfig, os_loja: parseInt(e.target.value) || 0})}
-              />
-            </div>
+            {(() => {
+              const somaVendas = Object.values(metasConfig.individuais || {}).reduce((acc, curr) => acc + (parseFloat(curr.vendas) || 0), 0);
+              const somaOS = Object.values(metasConfig.individuais || {}).reduce((acc, curr) => acc + (parseInt(curr.os) || 0), 0);
+              return (
+                <>
+                  <div>
+                    <Label className="flex justify-between">
+                      <span>Meta de Vendas (R$)</span>
+                      {somaVendas > 0 && <span className="text-[10px] text-blue-600 font-bold uppercase">Calculado por Vendedores</span>}
+                    </Label>
+                    <Input
+                      type="number"
+                      className={`${somaVendas > 0 ? 'bg-blue-50 border-blue-200' : ''}`}
+                      value={somaVendas > 0 ? somaVendas : metasConfig.vendas_loja}
+                      onChange={(e) => setMetasConfig({...metasConfig, vendas_loja: parseFloat(e.target.value) || 0})}
+                      disabled={somaVendas > 0}
+                    />
+                  </div>
+                  <div>
+                    <Label className="flex justify-between">
+                      <span>Meta de OS (Quantidade)</span>
+                      {somaOS > 0 && <span className="text-[10px] text-blue-600 font-bold uppercase">Calculado por Vendedores</span>}
+                    </Label>
+                    <Input
+                      type="number"
+                      className={`${somaOS > 0 ? 'bg-blue-50 border-blue-200' : ''}`}
+                      value={somaOS > 0 ? somaOS : metasConfig.os_loja}
+                      onChange={(e) => setMetasConfig({...metasConfig, os_loja: parseInt(e.target.value) || 0})}
+                      disabled={somaOS > 0}
+                    />
+                  </div>
+                </>
+              );
+            })()}
             <div>
               <Label>Ticket Médio Desejado (R$)</Label>
               <Input
@@ -943,46 +1118,123 @@ export default function MetasAprimorado({ vendedorOverride = null, filtro = null
           
           {usuariosSistema && usuariosSistema.length > 0 && (
             <div className="mt-6 border-t pt-4">
-              <Label className="text-lg font-bold">Metas Individuais por Usuário</Label>
-              <p className="text-xs text-slate-500 mb-4">Caso o usuário não possua meta registrada, será utilizada a divisão da Meta da Loja.</p>
-              <div className="space-y-4 max-h-[300px] overflow-y-auto">
+              <Label className="text-lg font-bold mb-4 block">Metas Individuais (Personalizadas)</Label>
+              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
                 {usuariosSistema.map(u => (
-                  <div key={u.user_id} className="grid grid-cols-4 gap-4 items-end bg-slate-50 p-3 rounded-lg border">
-                    <div className="col-span-2">
-                      <Label className="font-semibold text-sm">{u.user_nome}</Label>
-                      <p className="text-xs text-slate-500">{u.cargo_nome}</p>
+                  <div key={u.user_id} className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="flex justify-between items-center mb-3">
+                      <div>
+                         <p className="font-bold text-slate-900">{u.user_nome || u.nome}</p>
+                         <p className="text-[10px] text-blue-600 font-semibold uppercase">{u.cargo_nome}</p>
+                      </div>
                     </div>
-                    <div>
-                      <Label className="text-xs">Vendas (R$)</Label>
-                      <Input 
-                        type="number"
-                        placeholder="Ex: 5000"
-                        className="h-8 text-sm"
-                        value={metasConfig.individuais?.[u.user_id]?.vendas || ''}
-                        onChange={(e) => setMetasConfig({
-                          ...metasConfig,
-                          individuais: {
-                            ...(metasConfig.individuais || {}),
-                            [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), vendas: parseFloat(e.target.value) || 0 }
-                          }
-                        })}
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">O.S (Qtd)</Label>
-                      <Input 
-                        type="number"
-                        placeholder="Ex: 10"
-                        className="h-8 text-sm"
-                        value={metasConfig.individuais?.[u.user_id]?.os || ''}
-                        onChange={(e) => setMetasConfig({
-                          ...metasConfig,
-                          individuais: {
-                            ...(metasConfig.individuais || {}),
-                            [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), os: parseInt(e.target.value) || 0 }
-                          }
-                        })}
-                      />
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-slate-500 uppercase">Vendas (R$)</Label>
+                        <Input 
+                          type="number"
+                          className="h-8 text-xs"
+                          value={metasConfig.individuais?.[u.user_id]?.vendas || ''}
+                          onChange={(e) => setMetasConfig({
+                            ...metasConfig,
+                            individuais: {
+                              ...(metasConfig.individuais || {}),
+                              [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), vendas: parseFloat(e.target.value) || 0 }
+                            }
+                          })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-slate-500 uppercase">O.S (Qtd)</Label>
+                        <Input 
+                          type="number"
+                          className="h-8 text-xs"
+                          value={metasConfig.individuais?.[u.user_id]?.os || ''}
+                          onChange={(e) => setMetasConfig({
+                            ...metasConfig,
+                            individuais: {
+                              ...(metasConfig.individuais || {}),
+                              [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), os: parseInt(e.target.value) || 0 }
+                            }
+                          })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-slate-500 uppercase">Ticket (R$)</Label>
+                        <Input 
+                          type="number"
+                          className="h-8 text-xs"
+                          value={metasConfig.individuais?.[u.user_id]?.ticket_medio || ''}
+                          onChange={(e) => setMetasConfig({
+                            ...metasConfig,
+                            individuais: {
+                              ...(metasConfig.individuais || {}),
+                              [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), ticket_medio: parseFloat(e.target.value) || 0 }
+                            }
+                          })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-slate-500 uppercase">Clientes</Label>
+                        <Input 
+                          type="number"
+                          className="h-8 text-xs"
+                          value={metasConfig.individuais?.[u.user_id]?.novos_clientes || ''}
+                          onChange={(e) => setMetasConfig({
+                            ...metasConfig,
+                            individuais: {
+                              ...(metasConfig.individuais || {}),
+                              [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), novos_clientes: parseInt(e.target.value) || 0 }
+                            }
+                          })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-slate-500 uppercase">iPh. Novo</Label>
+                        <Input 
+                          type="number"
+                          className="h-8 text-xs"
+                          value={metasConfig.individuais?.[u.user_id]?.iphone_novo || ''}
+                          onChange={(e) => setMetasConfig({
+                            ...metasConfig,
+                            individuais: {
+                              ...(metasConfig.individuais || {}),
+                              [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), iphone_novo: parseInt(e.target.value) || 0 }
+                            }
+                          })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-slate-500 uppercase">iPh. Semi</Label>
+                        <Input 
+                          type="number"
+                          className="h-8 text-xs"
+                          value={metasConfig.individuais?.[u.user_id]?.iphone_seminovo || ''}
+                          onChange={(e) => setMetasConfig({
+                            ...metasConfig,
+                            individuais: {
+                              ...(metasConfig.individuais || {}),
+                              [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), iphone_seminovo: parseInt(e.target.value) || 0 }
+                            }
+                          })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-slate-500 uppercase">Android</Label>
+                        <Input 
+                          type="number"
+                          className="h-8 text-xs"
+                          value={metasConfig.individuais?.[u.user_id]?.android || ''}
+                          onChange={(e) => setMetasConfig({
+                            ...metasConfig,
+                            individuais: {
+                              ...(metasConfig.individuais || {}),
+                              [u.user_id]: { ...(metasConfig.individuais?.[u.user_id] || {}), android: parseInt(e.target.value) || 0 }
+                            }
+                          })}
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}

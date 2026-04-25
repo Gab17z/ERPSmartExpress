@@ -62,8 +62,10 @@ import {
 import { toast } from "sonner";
 import { format, subDays, startOfMonth, endOfMonth, differenceInDays, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useLoja } from "@/contexts/LojaContext";
 
 export default function Marketing() {
+  const { lojaFiltroId } = useLoja();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("visao-geral");
   const [dialogCampanha, setDialogCampanha] = useState(false);
@@ -73,18 +75,24 @@ export default function Marketing() {
 
   // Queries
   const { data: clientes = [], isLoading: loadingClientes } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: () => base44.entities.Cliente.list('-created_date'),
+    queryKey: ['clientes', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.Cliente.list('-created_date'),
   });
 
   const { data: vendas = [], isLoading: loadingVendas } = useQuery({
-    queryKey: ['vendas'],
-    queryFn: () => base44.entities.Venda.list('-created_date'),
+    queryKey: ['vendas', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.Venda.list('-created_date'),
   });
 
   const { data: cupons = [] } = useQuery({
-    queryKey: ['cupons'],
-    queryFn: () => base44.entities.CupomDesconto.list('-created_date'),
+    queryKey: ['cupons', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.CupomDesconto.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+      : base44.entities.CupomDesconto.list('-created_date'),
   });
 
   // Segmentacao de clientes

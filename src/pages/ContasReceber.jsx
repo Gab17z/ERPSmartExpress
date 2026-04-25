@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLoja } from "@/contexts/LojaContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ import { toast } from "sonner";
 import { format, isAfter, isBefore, startOfDay } from "date-fns";
 
 export default function ContasReceber() {
+  const { lojaFiltroId } = useLoja();
   const [dialogConta, setDialogConta] = useState(false);
   const [dialogBaixa, setDialogBaixa] = useState(false);
   const [clienteOpen, setClienteOpen] = useState(false);
@@ -43,10 +45,12 @@ export default function ContasReceber() {
   const queryClient = useQueryClient();
 
   const { data: contas = [] } = useQuery({
-    queryKey: ['contas-receber'],
+    queryKey: ['contas-receber', lojaFiltroId],
     queryFn: async () => {
         try {
-          return await base44.entities.ContaReceber.list('-data_vencimento');
+          return lojaFiltroId
+            ? await base44.entities.ContaReceber.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' })
+            : lojaFiltroId ? await base44.entities.ContaReceber.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' }) : await base44.entities.ContaReceber.list('-data_vencimento');
         } catch {
           return [];
         }
@@ -55,8 +59,10 @@ export default function ContasReceber() {
   });
 
   const { data: clientes = [] } = useQuery({
-    queryKey: ['clientes'],
-    queryFn: () => base44.entities.Cliente.list('nome_completo'),
+    queryKey: ['clientes', lojaFiltroId],
+    queryFn: () => lojaFiltroId
+      ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: 'nome_completo' })
+      : lojaFiltroId ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: 'nome_completo' }) : base44.entities.Cliente.list('nome_completo'),
   });
 
   const createMutation = useMutation({
@@ -89,7 +95,8 @@ export default function ContasReceber() {
       valor: valorNumerico,
       valor_pago: 0,
       status: "pendente",
-      data_vencimento: formData.data_vencimento
+      data_vencimento: formData.data_vencimento,
+      loja_id: lojaFiltroId || null
     });
   };
 
