@@ -66,7 +66,8 @@ export default defineConfig({
         // Cache de arquivos estáticos do app (JS, CSS, HTML)
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
         // Limite de tamanho para precache (5MB)
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // FIX: era 5MB, reduzido para evitar QuotaExceededError
+        cleanupOutdatedCaches: true, // FIX: limpar caches antigos ao atualizar
         runtimeCaching: [
           {
             // Cache de imagens do Supabase Storage (fotos de OS, produtos, etc)
@@ -75,8 +76,8 @@ export default defineConfig({
             options: {
               cacheName: 'supabase-images',
               expiration: {
-                maxEntries: 500,
-                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 dias
+                maxEntries: 60,   // FIX: era 500 — reduzido para evitar QuotaExceededError
+                maxAgeSeconds: 7 * 24 * 60 * 60, // 7 dias (era 30)
               },
               cacheableResponse: {
                 statuses: [0, 200],
@@ -84,19 +85,12 @@ export default defineConfig({
             },
           },
           {
-            // Cache de APIs do Supabase (dados) - Network First para dados frescos
+            // APIs do Supabase — NetworkOnly (dados frescos, sem cache de API)
+            // FIX: era NetworkFirst com cache de 200 entradas — causava QuotaExceededError
             urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
-            handler: 'NetworkFirst',
+            handler: 'NetworkOnly',
             options: {
               cacheName: 'supabase-api',
-              networkTimeoutSeconds: 10,
-              expiration: {
-                maxEntries: 200,
-                maxAgeSeconds: 5 * 60, // 5 minutos
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
             },
           },
           {
