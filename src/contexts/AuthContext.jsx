@@ -158,11 +158,10 @@ export function AuthProvider({ children }) {
     checkLoginAttempts(emailNorm);
 
     // S01 FIX: Usar RPC do Supabase com bcrypt (pgcrypto)
-    // Função 'verificar_login' retorna: { id, nome, email, ativo }
-    // loja_id NÃO vem da RPC — vem de usuario_sistema logo abaixo
+    // Usa emailNorm (lowercase) para garantir matching case-insensitive
     const { data: usuariosRPC, error: rpcError } = await supabase
       .rpc('verificar_login', {
-        p_email: email.trim(),
+        p_email: emailNorm,  // FIX: usa emailNorm em vez de email.trim() para case-insensitive
         p_senha: password
       });
 
