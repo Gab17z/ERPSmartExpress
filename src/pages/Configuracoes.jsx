@@ -751,7 +751,8 @@ export default function Configuracoes() {
         // Atualizar existente
         await base44.entities.UsuarioSistema.update(usuarioSistemaId, {
           nome: usuarioAtualizado.nome,
-          email: usuarioAtualizado.email,
+          // FIX: NÃO atualizar email aqui — viola unique constraint "usuario_sistema_email_key"
+          // O email é gerenciado na tabela usuario, não em usuario_sistema
           codigo_barras_autorizacao: codigo_barras_autorizacao || null,
           senha_autorizacao: senha_autorizacao || null,
           cargo_id: cargo_id || null,

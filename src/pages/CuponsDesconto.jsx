@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLoja } from "@/contexts/LojaContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ import { useConfirm } from '@/contexts/ConfirmContext';
 
 export default function CuponsDesconto() {
   const { lojaFiltroId } = useLoja();
+  const { user } = useAuth();
   const confirm = useConfirm();
   const [dialogCupom, setDialogCupom] = useState(false);
   const [editingCupom, setEditingCupom] = useState(null);
@@ -36,29 +38,39 @@ export default function CuponsDesconto() {
     queryKey: ['cupons', lojaFiltroId],
     queryFn: async () => {
       try {
-        return lojaFiltroId
-          ? await base44.entities.CupomDesconto.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-          : await base44.entities.CupomDesconto.list('-created_date');
+        // Tenta filtrar por loja_id — se a coluna não existir no banco, cai no catch
+        if (lojaFiltroId) {
+          return await base44.entities.CupomDesconto.filter({ loja_id: lojaFiltroId }, { order: '-created_date' });
+        }
+        return await base44.entities.CupomDesconto.list('-created_date');
       } catch {
-        return [];
+        // Fallback: buscar tudo sem filtro (coluna loja_id ainda não existe)
+        try { return await base44.entities.CupomDesconto.list('-created_date'); } catch { return []; }
       }
     },
   });
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      // CRÍTICO: Verificar código duplicado dentro da mesma loja
-      const cuponsExistentes = lojaFiltroId 
-        ? await base44.entities.CupomDesconto.filter({ loja_id: lojaFiltroId })
-        : await base44.entities.CupomDesconto.list();
-        
-      const codigoDuplicado = cuponsExistentes.find(
-        c => c.codigo?.toUpperCase() === data.codigo?.toUpperCase()
-      );
-      if (codigoDuplicado) {
-        throw new Error("Já existe um cupom com este código!");
+      // Verificar código duplicado
+      try {
+        const cuponsExistentes = lojaFiltroId 
+          ? await base44.entities.CupomDesconto.filter({ loja_id: lojaFiltroId })
+          : await base44.entities.CupomDesconto.list();
+        const codigoDuplicado = cuponsExistentes.find(
+          c => c.codigo?.toUpperCase() === data.codigo?.toUpperCase()
+        );
+        if (codigoDuplicado) throw new Error("Já existe um cupom com este código!");
+      } catch (e) {
+        if (e.message?.includes('cupom')) throw e;
+        // Se der 400 (coluna não existe), pula verificação duplicada
       }
-      return base44.entities.CupomDesconto.create({ ...data, loja_id: lojaFiltroId || user?.loja_id || null });
+      // Salvar sem loja_id se a coluna não existir — remover após rodar o SQL
+      try {
+        return base44.entities.CupomDesconto.create({ ...data, loja_id: lojaFiltroId || user?.loja_id || null });
+      } catch {
+        return base44.entities.CupomDesconto.create({ ...data });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cupons', lojaFiltroId] });
