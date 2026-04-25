@@ -77,7 +77,21 @@ class Entity {
 
       if (options.filters) {
         for (const [key, value] of Object.entries(options.filters)) {
-          if (Array.isArray(value)) {
+          if (key === 'or' && Array.isArray(value)) {
+            // Suporte para filtros OR: filter({ or: [ {loja_id: id}, {loja_id: null} ] })
+            const orConditions = value.map(v => {
+              if (typeof v === 'string') return v;
+              const entries = Object.entries(v);
+              if (entries.length === 0) return null;
+              const [k, val] = entries[0];
+              if (val === null) return `${k}.is.null`;
+              return `${k}.eq.${val}`;
+            }).filter(Boolean).join(',');
+            
+            if (orConditions) {
+              query = query.or(orConditions);
+            }
+          } else if (Array.isArray(value)) {
             query = query.in(key, value);
           } else if (value === null) {
             query = query.is(key, null);
