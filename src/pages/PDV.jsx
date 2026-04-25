@@ -149,7 +149,12 @@ export default function PDV() {
   const { data: usuariosSistema = [] } = useQuery({
     queryKey: ['usuarios_sistema', lojaFiltroId],
     queryFn: () => lojaFiltroId
-      ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
+      ? base44.entities.UsuarioSistema.filter({ 
+          or: [
+            { loja_id: lojaFiltroId },
+            { loja_id: null }
+          ]
+        }, { order: 'nome' })
       : base44.entities.UsuarioSistema.list('nome'),
   });
 
@@ -928,7 +933,15 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
     setValidandoVendedor(true);
     try {
       // CORREÇÃO: Buscar dados FRESCOS do banco para evitar nomes desatualizados pelo cache
-      const usuariosFrescos = lojaFiltroId ? await base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId }, { order: 'nome' }) : await base44.entities.UsuarioSistema.list('nome');
+      // Agora incluindo usuários globais (loja_id null) para que admins possam vender em qualquer loja
+      const usuariosFrescos = lojaFiltroId 
+        ? await base44.entities.UsuarioSistema.filter({ 
+            or: [
+              { loja_id: lojaFiltroId },
+              { loja_id: null }
+            ]
+          }, { order: 'nome' }) 
+        : await base44.entities.UsuarioSistema.list('nome');
 
       // Buscar TODOS os vendedores que batem com a senha (para detectar duplicatas)
       const vendedoresComSenha = usuariosFrescos.filter(
