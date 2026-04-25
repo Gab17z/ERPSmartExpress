@@ -36,7 +36,7 @@ export default function RelatorioOS() {
     queryKey: ['ordens-servico', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId })
-      : lojaFiltroId ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId }) : base44.entities.OrdemServico.list(),
+      : base44.entities.OrdemServico.list(),
   });
 
   const osFiltradas = os.filter(o => filtrarPorData(o.data_entrada));

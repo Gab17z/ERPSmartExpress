@@ -50,7 +50,7 @@ export default function ContasReceber() {
         try {
           return lojaFiltroId
             ? await base44.entities.ContaReceber.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' })
-            : lojaFiltroId ? await base44.entities.ContaReceber.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' }) : await base44.entities.ContaReceber.list('-data_vencimento');
+            : await base44.entities.ContaReceber.list('-data_vencimento');
         } catch {
           return [];
         }
@@ -62,7 +62,7 @@ export default function ContasReceber() {
     queryKey: ['clientes', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: 'nome_completo' })
-      : lojaFiltroId ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }, { order: 'nome_completo' }) : base44.entities.Cliente.list('nome_completo'),
+      : base44.entities.Cliente.list('nome_completo'),
   });
 
   const createMutation = useMutation({
@@ -96,7 +96,7 @@ export default function ContasReceber() {
       valor_pago: 0,
       status: "pendente",
       data_vencimento: formData.data_vencimento,
-      loja_id: lojaFiltroId || null
+      loja_id: lojaFiltroId || user?.loja_id || null
     });
   };
 

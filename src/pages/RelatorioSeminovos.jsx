@@ -31,7 +31,7 @@ export default function RelatorioSeminovos() {
     queryKey: ['avaliacoes', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.AvaliacaoSeminovo.filter({ loja_id: lojaFiltroId })
-      : lojaFiltroId ? base44.entities.AvaliacaoSeminovo.filter({ loja_id: lojaFiltroId }, { order: '-data_avaliacao' }) : base44.entities.AvaliacaoSeminovo.list('-data_avaliacao'),
+      : base44.entities.AvaliacaoSeminovo.list('-data_avaliacao'),
   });
 
   const avaliacoesFiltradas = avaliacoes.filter(a => filtrarPorData(a.data_avaliacao || a.created_date));

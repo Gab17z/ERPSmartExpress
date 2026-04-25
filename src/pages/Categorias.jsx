@@ -55,12 +55,12 @@ export default function Categorias() {
     queryKey: ['categorias', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Categoria.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
-      : lojaFiltroId ? base44.entities.Categoria.filter({ loja_id: lojaFiltroId }, { order: 'nome' }) : base44.entities.Categoria.list('nome'),
+      : base44.entities.Categoria.list('nome'),
   });
 
   const createMutation = useMutation({
     mutationFn: (data) => {
-      const dataWithLoja = { ...data, loja_id: lojaFiltroId || null };
+      const dataWithLoja = { ...data, loja_id: lojaFiltroId || user?.loja_id || null };
       return base44.entities.Categoria.create(dataWithLoja);
     },
     onSuccess: () => {

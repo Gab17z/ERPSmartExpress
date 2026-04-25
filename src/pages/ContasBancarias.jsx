@@ -47,7 +47,7 @@ export default function ContasBancarias() {
       try {
         return lojaFiltroId
           ? await base44.entities.ContaBancaria.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
-          : lojaFiltroId ? await base44.entities.ContaBancaria.filter({ loja_id: lojaFiltroId }, { order: 'nome' }) : await base44.entities.ContaBancaria.list('nome');
+          : await base44.entities.ContaBancaria.list('nome');
       } catch {
         return [];
       }

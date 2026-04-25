@@ -32,7 +32,7 @@ export default function AnalisesCurvaABC() {
     queryKey: ['vendas', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Venda.filter({ loja_id: lojaFiltroId })
-      : lojaFiltroId ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }) : base44.entities.Venda.list(),
+      : base44.entities.Venda.list(),
     refetchInterval: 30000
   });
 
@@ -40,7 +40,7 @@ export default function AnalisesCurvaABC() {
     queryKey: ['produtos', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Produto.filter({ loja_id: lojaFiltroId })
-      : lojaFiltroId ? base44.entities.Produto.filter({ loja_id: lojaFiltroId }) : base44.entities.Produto.list(),
+      : base44.entities.Produto.list(),
   });
 
   const { data: comissoes = [] } = useQuery({
@@ -49,7 +49,7 @@ export default function AnalisesCurvaABC() {
       try {
         return lojaFiltroId
           ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId })
-          : lojaFiltroId ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }) : await base44.entities.Comissao.list();
+          : await base44.entities.Comissao.list();
       } catch {
         return [];
       }

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { supabase } from "@/api/supabaseClient";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -86,6 +87,11 @@ export default function Caixa() {
   const { data: caixas = [], isLoading } = useQuery({
     queryKey: ['caixas', lojaFiltroId],
     queryFn: () => base44.entities.Caixa.list('-created_date'),
+    // P01 FIX: Caixa é dado crítico em tempo real
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchInterval: 30000,
   });
 
   // Procurar caixa aberto: da loja selecionada OU um caixa global (null) aberto por admin
@@ -118,9 +124,11 @@ export default function Caixa() {
 
   const { data: usuariosSistema = [] } = useQuery({
     queryKey: ['usuarios_sistema_caixa', lojaFiltroId],
+    // C06 FIX: A lógica original era: lojaFiltroId ? filter : lojaFiltroId ? filter : list
+    // — a segunda condição nunca era falsa se a primeira passasse, então o list nunca era chamado
     queryFn: () => lojaFiltroId
-      ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId })
-      : lojaFiltroId ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId }, { order: 'nome' }) : base44.entities.UsuarioSistema.list('nome'),
+      ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
+      : base44.entities.UsuarioSistema.list('nome'),
   });
 
 
@@ -193,7 +201,7 @@ export default function Caixa() {
         data_abertura: new Date().toISOString(),
         valor_inicial: valorInicial,
         observacoes: obsAbertura,
-        loja_id: lojaFiltroId || null,
+        loja_id: lojaFiltroId || user?.loja_id || null,
         status: 'aberto'
       });
     },
@@ -252,7 +260,7 @@ export default function Caixa() {
         descricao: descricaoMovimentacao + (aprovado ? ` | Aprovado por: ${user?.nome || 'Gerente'}` : ''),
         usuario_id: user?.id || null,
         usuario_nome: user?.nome || "Usuário", // Campo extra para exibição
-        loja_id: lojaFiltroId || null
+        loja_id: lojaFiltroId || user?.loja_id || null
       };
 
       const movimentacao = await base44.entities.MovimentacaoCaixa.create(movimentacaoData);
@@ -314,7 +322,7 @@ export default function Caixa() {
         descricao: descricaoMovimentacao,
         usuario_id: user?.id || null,
         usuario_nome: user?.nome || "Usuário", // Campo extra para exibição
-        loja_id: lojaFiltroId || null
+        loja_id: lojaFiltroId || user?.loja_id || null
       };
 
       const movimentacao = await base44.entities.MovimentacaoCaixa.create(movimentacaoData);
@@ -411,21 +419,55 @@ export default function Caixa() {
         });
       });
 
-      const caixaAtualizado = await base44.entities.Caixa.update(caixaAberto.id, {
-        status: 'fechado',
-        data_fechamento: new Date().toISOString(),
-        usuario_fechamento: user?.nome || "Usuário",
-        total_vendas: totalVendas,
-        valor_contado: totalContado,
-        valor_fechamento: valorEsperadoReal,
-        diferenca: diferenca,
-        total_sangrias: totalSangrias,
-        total_suprimentos: totalSuprimentos,
-        observacoes_fechamento: observacoes,
-        aprovacao_diferenca: diferencaAbsoluta > LIMITE_DIFERENCA_SEM_APROVACAO ? user?.nome : null,
-        contagem_notas: contagemNotas,
-        resumo_pagamentos: resumoPag
-      });
+      // F04 FIX: Tentar fechamento atômico via RPC primeiro
+      // Isso evita que dois operadores fechem o mesmo caixa simultaneamente
+      const { data: rpcResult, error: rpcError } = await supabase
+        .rpc('fechar_caixa', {
+          p_caixa_id: caixaAberto.id,
+          p_status_esperado: 'aberto',
+          p_status_novo: 'fechado',
+          p_data_fechamento: new Date().toISOString(),
+          p_usuario_fechamento: user?.nome || 'Usuário',
+          p_total_vendas: totalVendas,
+          p_valor_contado: totalContado,
+          p_valor_fechamento: valorEsperadoReal,
+          p_diferenca: diferenca,
+          p_total_sangrias: totalSangrias,
+          p_total_suprimentos: totalSuprimentos,
+          p_observacoes: observacoes,
+          p_aprovacao_diferenca: diferencaAbsoluta > LIMITE_DIFERENCA_SEM_APROVACAO ? user?.nome : null,
+          p_contagem_notas: JSON.stringify(contagemNotas),
+          p_resumo_pagamentos: JSON.stringify(resumoPag)
+        });
+
+      let caixaAtualizado;
+      if (!rpcError && rpcResult) {
+        // RPC atomicamente verificou que estava 'aberto' e fechou
+        caixaAtualizado = rpcResult;
+      } else {
+        // Fallback: UPDATE direto com verificação manual de estado
+        // Buscar estado fresco para verificar se já foi fechado por outro operador
+        const caixaFresco = await base44.entities.Caixa.get(caixaAberto.id);
+        if (caixaFresco?.status === 'fechado') {
+          throw new Error('Este caixa já foi fechado por outro operador.');
+        }
+
+        caixaAtualizado = await base44.entities.Caixa.update(caixaAberto.id, {
+          status: 'fechado',
+          data_fechamento: new Date().toISOString(),
+          usuario_fechamento: user?.nome || 'Usuário',
+          total_vendas: totalVendas,
+          valor_contado: totalContado,
+          valor_fechamento: valorEsperadoReal,
+          diferenca: diferenca,
+          total_sangrias: totalSangrias,
+          total_suprimentos: totalSuprimentos,
+          observacoes_fechamento: observacoes,
+          aprovacao_diferenca: diferencaAbsoluta > LIMITE_DIFERENCA_SEM_APROVACAO ? user?.nome : null,
+          contagem_notas: contagemNotas,
+          resumo_pagamentos: resumoPag
+        });
+      }
 
       return { caixa: caixaAtualizado, vendas: vendasDoCaixa, movimentacoes: movsDoCaixa };
     },

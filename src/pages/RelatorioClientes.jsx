@@ -33,21 +33,21 @@ export default function RelatorioClientes() {
     queryKey: ['clientes', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId })
-      : lojaFiltroId ? base44.entities.Cliente.filter({ loja_id: lojaFiltroId }) : base44.entities.Cliente.list(),
+      : base44.entities.Cliente.list(),
   });
 
   const { data: vendas = [] } = useQuery({
     queryKey: ['vendas', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Venda.filter({ loja_id: lojaFiltroId })
-      : lojaFiltroId ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }) : base44.entities.Venda.list(),
+      : base44.entities.Venda.list(),
   });
 
   const { data: ordensServico = [] } = useQuery({
     queryKey: ['ordens-servico', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId })
-      : lojaFiltroId ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId }) : base44.entities.OrdemServico.list(),
+      : base44.entities.OrdemServico.list(),
   });
 
   const filtrarPorData = (data) => {

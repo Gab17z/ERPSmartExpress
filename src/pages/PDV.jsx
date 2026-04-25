@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { supabase } from "@/api/supabaseClient";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -82,6 +83,8 @@ export default function PDV() {
   const [fullscreen, setFullscreen] = useState(false);
   const [dialogSenhaDesconto, setDialogSenhaDesconto] = useState(false);
   const [codigoBarrasDigitado, setCodigoBarrasDigitado] = useState("");
+  // S04/F02 FIX: Configurações buscadas do banco, não do localStorage
+  // localStorage ainda é usado para preferências não críticas (som, impressão)
   const [configuracoes, setConfiguracoes] = useState(null);
   const [descontoTemporario, setDescontoTemporario] = useState(0);
   const barcodeInputRef = useRef(null);
@@ -135,7 +138,9 @@ export default function PDV() {
   const { data: caixas = [], isLoading: loadingCaixas, isFetching: fetchingCaixas } = useQuery({
     queryKey: ['caixas', lojaFiltroId],
     queryFn: () => base44.entities.Caixa.list('-created_date'),
+    // P01: staleTime: 0 explícito pois caixa é dado crítico em tempo real
     staleTime: 0,
+    refetchOnMount: 'always',
     refetchInterval: 30000, // Verifica status do caixa a cada 30 segundos
   });
 
@@ -158,7 +163,45 @@ export default function PDV() {
       : base44.entities.UsuarioSistema.list('nome'),
   });
 
-  // Vendas recentes para reimpressão (carrega só quando dialog aberto)
+  // S04/F02 FIX: Buscar configurações críticas DO BANCO, não do localStorage
+  // Isso garante que mudanças feitas pelo admin sejam refletidas imediatamente em todos os caixas
+  const { data: configuracaoDB } = useQuery({
+    queryKey: ['configuracao', lojaFiltroId],
+    queryFn: async () => {
+      try {
+        const configs = lojaFiltroId
+          ? await base44.entities.Configuracao.filter({ loja_id: lojaFiltroId })
+          : await base44.entities.Configuracao.list();
+        return configs?.[0] || null;
+      } catch {
+        return null;
+      }
+    },
+    // Configurações são atualizadas a cada 5 minutos
+    staleTime: 5 * 60 * 1000,
+    refetchOnMount: true,
+  });
+
+  // Mesclar: banco tem prioridade sobre localStorage para campos críticos
+  const configERP = useMemo(() => {
+    const local = configuracoes || {};
+    const db = configuracaoDB || {};
+    return {
+      ...local,
+      pdv: {
+        ...(local?.pdv || {}),
+        // F02: Taxa de comissão SEMPRE vem do banco se disponível
+        percentual_comissao: db?.percentual_comissao ?? local?.pdv?.percentual_comissao ?? 5,
+        // S04: Limite de desconto SEMPRE vem do banco se disponível
+        solicitar_senha_desconto_acima: db?.desconto_maximo_sem_senha ?? local?.pdv?.solicitar_senha_desconto_acima ?? 10,
+        exigir_senha_desconto: db?.exigir_senha_desconto ?? local?.pdv?.exigir_senha_desconto ?? true,
+        // Preferências não críticas continuam do localStorage
+        impressao_automatica_cupom: local?.pdv?.impressao_automatica_cupom,
+        som_ao_adicionar: local?.pdv?.som_ao_adicionar,
+      }
+    };
+  }, [configuracoes, configuracaoDB]);
+
   const { data: vendasRecentes = [] } = useQuery({
     queryKey: ['vendas-reimpressao', lojaFiltroId],
     queryFn: () => lojaFiltroId
@@ -173,29 +216,15 @@ export default function PDV() {
       try {
         const config = JSON.parse(configSalva);
         setConfiguracoes(config);
-
-        // Tela cheia automática ao abrir o PDV
         if (config?.pdv?.tela_cheia_automatica && !document.fullscreenElement) {
-          setTimeout(() => {
-            document.documentElement.requestFullscreen()
-              .then(() => {
-                toast.success("🖥️ Modo tela cheia ativado automaticamente!");
-              })
-              .catch(() => {
-              });
-          }, 500);
+          console.log("PDV: Tela cheia automática habilitada. Aguardando interação do usuário.");
         }
-      } catch (error) {
-        console.error("Erro ao carregar configurações:", error);
+      } catch {
+        // config inválida no localStorage — ignora silenciosamente
       }
     }
-
-
-    // Focar no campo de busca após carregar
     setTimeout(() => {
-      if (inputBuscaRef.current) {
-        inputBuscaRef.current.focus();
-      }
+      if (inputBuscaRef.current) inputBuscaRef.current.focus();
     }, 300);
   }, []);
 
@@ -323,89 +352,110 @@ export default function PDV() {
         }
       }
 
-      // CORREÇÃO: Buscar dados FRESCOS do banco para evitar cache stale (isolado por loja)
+      // CORREÇÃO: Buscar dados FRESCOS do banco para validação antes da venda
       const produtosAtualizados = lojaFiltroId 
         ? await base44.entities.Produto.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
         : await base44.entities.Produto.list('nome');
       const produtosAtualizadosMap = new Map(produtosAtualizados.map(p => [p.id, p]));
 
-      // CRÍTICO: Validação final de estoque com dados frescos do banco
-      for (const item of vendaData.itens) {
-        if (item.is_servico) continue; // Pula validação de estoque para serviços
+      // F01 FIX: Usar RPC atômica para decrementar estoque de todos os itens de uma vez
+      // Isso elimina a race condition onde dois caixas vendiam o mesmo produto simultaneamente
+      const itensParaEstoque = vendaData.itens
+        .filter(item => !item.is_servico && item.produto_id)
+        .map(item => ({
+          produto_id: item.produto_id,
+          quantidade: item.quantidade
+        }));
 
-        const produto = produtosAtualizadosMap.get(item.produto_id);
-        if (!produto) {
-          throw new Error(`Produto ${item.produto_nome} não encontrado!`);
+      let atualizacoesRealizadas = [];
+      let usouRPC = false;
+
+      if (itensParaEstoque.length > 0) {
+        // Tentar usar a RPC atômica primeiro (requer SQL decrementar_estoque no Supabase)
+        const { data: resultadoRPC, error: rpcEstoqueError } = await supabase
+          .rpc('decrementar_estoque', { itens: JSON.stringify(itensParaEstoque) });
+
+        if (!rpcEstoqueError && resultadoRPC) {
+          // Verificar se todos os itens foram processados com sucesso
+          const falhas = resultadoRPC.filter(r => !r.sucesso);
+          if (falhas.length > 0) {
+            throw new Error(falhas[0].mensagem || 'Estoque insuficiente. Venda cancelada.');
+          }
+          usouRPC = true;
+          atualizacoesRealizadas = resultadoRPC.map(r => ({
+            produto_id: r.produto_id,
+            estoque_anterior: r.estoque_anterior,
+            estoque_novo: r.estoque_atual
+          }));
+        } else {
+          // Fallback: padrão antigo (SELECT + UPDATE) — REMOVER após criar a RPC no Supabase
+          // AVISO: Sujeito a race condition em ambiente multi-caixa
+          // CRÍTICO: Validação final de estoque com dados frescos do banco
+          for (const item of vendaData.itens) {
+            if (item.is_servico) continue;
+            const produto = produtosAtualizadosMap.get(item.produto_id);
+            if (!produto) throw new Error(`Produto ${item.produto_nome} não encontrado!`);
+            if (produto.estoque_atual < item.quantidade) {
+              throw new Error(`Estoque insuficiente para ${produto.nome}! Disponível: ${produto.estoque_atual}, Solicitado: ${item.quantidade}`);
+            }
+          }
         }
-        if (produto.estoque_atual < item.quantidade) {
-          throw new Error(`Estoque insuficiente para ${produto.nome}! Disponível: ${produto.estoque_atual}, Solicitado: ${item.quantidade}`);
-        }
+      } else {
+        // Apenas serviços no carrinho — sem necessidade de validar estoque
       }
 
       const venda = await base44.entities.Venda.create(vendaData);
 
       // CORREÇÃO: Array para rastrear atualizações para possível rollback
-      const atualizacoesRealizadas = [];
-
-      try {
-        // CRÍTICO: Atualizar estoque de forma sequencial e registrar movimentações
-        for (const item of vendaData.itens) {
-          if (item.is_servico) continue; // Pula baixa de estoque para serviços
-
-          const produto = produtosAtualizadosMap.get(item.produto_id);
-          if (produto) {
-            const estoqueAnterior = produto.estoque_atual;
-            const novoEstoque = estoqueAnterior - item.quantidade;
-
-            // CRÍTICO: Garantir que estoque não fique negativo
-            if (novoEstoque < 0) {
-              throw new Error(`Erro crítico: Estoque negativo detectado para ${produto.nome}`);
+      if (!usouRPC) {
+        // Fallback: atualizar estoque manualmente (somente se RPC não funcionou)
+        try {
+          for (const item of vendaData.itens) {
+            if (item.is_servico) continue;
+            const produto = produtosAtualizadosMap.get(item.produto_id);
+            if (produto) {
+              const estoqueAnterior = produto.estoque_atual;
+              const novoEstoque = estoqueAnterior - item.quantidade;
+              if (novoEstoque < 0) throw new Error(`Erro crítico: Estoque negativo para ${produto.nome}`);
+              await base44.entities.Produto.update(produto.id, { estoque_atual: novoEstoque });
+              atualizacoesRealizadas.push({ produto_id: produto.id, estoque_anterior: estoqueAnterior, estoque_novo: novoEstoque });
             }
-
-            await base44.entities.Produto.update(produto.id, {
-              estoque_atual: novoEstoque
-            });
-
-            // Rastrear para possível rollback
-            atualizacoesRealizadas.push({
-              produto_id: produto.id,
-              estoque_anterior: estoqueAnterior,
-              estoque_novo: novoEstoque
-            });
-
-            await base44.entities.MovimentacaoEstoque.create({
-              tipo: "venda",
-              produto_id: produto.id,
-              produto_nome: produto.nome,
-              quantidade: item.quantidade,
-              estoque_anterior: estoqueAnterior,
-              estoque_novo: novoEstoque,
-              motivo: "Venda PDV",
-              documento_referencia: venda.codigo_venda,
-              usuario_responsavel: user?.nome,
-              data_movimentacao: new Date().toISOString()
-            });
           }
-        }
-      } catch (error) {
-        // CORREÇÃO: Rollback das atualizações de estoque em caso de erro
-        console.error("Erro ao atualizar estoque, iniciando rollback:", error);
-        for (const atualizacao of atualizacoesRealizadas) {
-          try {
-            await base44.entities.Produto.update(atualizacao.produto_id, {
-              estoque_atual: atualizacao.estoque_anterior
-            });
-          } catch (rollbackError) {
-            console.error("Erro no rollback:", rollbackError);
+        } catch (error) {
+          console.error("Erro ao atualizar estoque, iniciando rollback:", error);
+          for (const atu of atualizacoesRealizadas) {
+            try { await base44.entities.Produto.update(atu.produto_id, { estoque_atual: atu.estoque_anterior }); } catch {}
           }
+          throw error;
         }
-        throw error;
       }
 
-      // CRÍTICO: Gerar comissão usando configurações ou padrão 5%
+      // Registrar movimentações de estoque (log)
       try {
-        const config = JSON.parse(localStorage.getItem('configuracoes_erp') || '{}');
-        const percentualComissao = config?.pdv?.percentual_comissao || 5;
+        for (const atu of atualizacoesRealizadas) {
+          const produto = produtosAtualizadosMap.get(atu.produto_id);
+          await base44.entities.MovimentacaoEstoque.create({
+            tipo: "venda",
+            produto_id: atu.produto_id,
+            produto_nome: produto?.nome || 'Produto',
+            quantidade: atu.estoque_anterior - atu.estoque_novo,
+            estoque_anterior: atu.estoque_anterior,
+            estoque_novo: atu.estoque_novo,
+            motivo: "Venda PDV",
+            documento_referencia: venda.codigo_venda,
+            usuario_responsavel: user?.nome,
+            loja_id: lojaFiltroId || user?.loja_id || null,
+            data_movimentacao: new Date().toISOString()
+          });
+        }
+      } catch (e) {
+        // Log de movimentação não é crítico — venda já foi criada
+        console.warn("Aviso: Não foi possível registrar log de movimentação de estoque:", e?.code);
+      }
+
+      // F02 FIX: Usar taxa de comissão do banco (via configERP) em vez de localStorage
+      try {
+        const percentualComissao = configERP?.pdv?.percentual_comissao || 5;
         const valorComissao = (venda.valor_total * percentualComissao) / 100;
 
         await base44.entities.Comissao.create({
@@ -415,7 +465,8 @@ export default function PDV() {
           valor_venda: venda.valor_total,
           percentual: percentualComissao,
           valor_comissao: valorComissao,
-          status: "pendente"
+          status: "pendente",
+          loja_id: lojaFiltroId || user?.loja_id || null
         });
       } catch (error) {
         console.error("Erro ao gerar comissão:", error);
@@ -444,7 +495,8 @@ export default function PDV() {
                 valor: valorLiquidoPagamento,
                 forma_pagamento: pag.forma_pagamento,
                 data: new Date().toISOString(),
-                usuario: user?.nome || 'Sistema'
+                usuario: user?.nome || 'Sistema',
+                loja_id: lojaFiltroId || user?.loja_id || null
               });
 
               somaTotal += valorLiquidoPagamento;
@@ -516,7 +568,8 @@ export default function PDV() {
             valor_pago: 0,
             status: "pendente",
             data_vencimento: dataVencimento.toISOString().split('T')[0],
-            venda_id: venda.id
+            venda_id: venda.id,
+            loja_id: lojaFiltroId || user?.loja_id || null
           });
         }
       } catch (error) {
@@ -604,13 +657,21 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
     },
   });
 
-  const produtosFiltrados = produtos.filter(p =>
+  // P05 FIX: Debounce de 300ms na busca — evita filtro a cada tecla em listas grandes
+  const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // P03 FIX: Memoizar filtro de produtos — evita recalcular em cada render
+  const produtosFiltrados = useMemo(() => produtos.filter(p =>
     p.ativo !== false &&
     (p.estoque_atual === undefined || p.estoque_atual > 0) &&
-    (p.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.codigo_barras?.includes(searchTerm))
-  );
+    (p.nome?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      p.sku?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      p.codigo_barras?.includes(debouncedSearch))
+  ), [produtos, debouncedSearch]);
 
   const adicionarAoCarrinho = (produto) => {
     const itemExistente = carrinho.find(item => item.produto_id === produto.id);
@@ -751,6 +812,7 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
           motivo: "Desconto autorizado via Supervisor no PDV",
           aprovador_nome: usuarioAutorizador.user_nome,
           aprovador_id: usuarioAutorizador.user_id,
+          loja_id: lojaFiltroId || user?.loja_id || null
         });
       } catch (logError) {
         console.error("Erro ao registrar log:", logError);
@@ -778,8 +840,9 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
       setDescontoPercentual(percentualLimitado);
       return true;
     }
-    const limiteDesconto = configuracoes?.pdv?.solicitar_senha_desconto_acima || 10;
-    const exigeSenha = configuracoes?.pdv?.exigir_senha_desconto !== false;
+    // S04 FIX: Limite de desconto vem de configERP (banco tem prioridade sobre localStorage)
+    const limiteDesconto = configERP?.pdv?.solicitar_senha_desconto_acima || 10;
+    const exigeSenha = configERP?.pdv?.exigir_senha_desconto !== false;
 
     if (exigeSenha && percentualLimitado > limiteDesconto) {
       setDescontoTemporario(percentualLimitado);
@@ -800,6 +863,7 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
         motivo: "Desconto dentro do limite permitido",
         aprovador_nome: user?.nome || "N/A",
         aprovador_id: user?.id,
+        loja_id: lojaFiltroId || user?.loja_id || null
       });
     } catch (e) {
       console.error("Erro ao registrar log de desconto:", e);
@@ -944,9 +1008,15 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
         : await base44.entities.UsuarioSistema.list('nome');
 
       // Buscar TODOS os vendedores que batem com a senha (para detectar duplicatas)
+      const senhaDigitada = senhaVendedor.trim();
       const vendedoresComSenha = usuariosFrescos.filter(
-        u => u.senha_autorizacao === senhaVendedor && u.ativo !== false
+        u => (u.senha_autorizacao || "").toString().trim() === senhaDigitada && u.ativo !== false
       );
+
+      // S08 FIX: Log mínimo sem expor dados sensíveis no console
+      if (vendedoresComSenha.length === 0 && isAdmin) {
+        console.warn('[PDV] Senha de vendedor não encontrada. Usuários ativos na loja:', usuariosFrescos.filter(u => u.ativo !== false).length);
+      }
 
       if (vendedoresComSenha.length === 0) {
         toast.error("Senha inválida! Vendedor não encontrado.");
@@ -1064,7 +1134,7 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
         vendedor_id: vendedorSelecionado?.user_id || vendedorSelecionado?.id,
         vendedor_nome: vendedorSelecionado?.nome,
         caixa_id: caixaAberto.id,
-        loja_id: lojaFiltroId || null,
+        loja_id: lojaFiltroId || user?.loja_id || null,
         itens: carrinho,
         subtotal: subtotalCalculado,
         desconto_total: descontoCalculado + descontoCupomCalculado,
@@ -1081,14 +1151,25 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
         ...(osVinculada ? { os_id: osVinculada.id } : {}),
       };
 
-      // Se tem cupom aplicado, incrementar uso_atual após a venda
+      // F03 FIX: Usar RPC atômica para incrementar uso do cupom
+      // Elimina race condition onde 2 clientes usam o mesmo cupom simultaneamente
       if (cupomAplicado) {
         try {
-          await base44.entities.CupomDesconto.update(cupomAplicado.id, {
-            uso_atual: (cupomAplicado.uso_atual || 0) + 1
-          });
+          const { data: cupomResult, error: cupomRPCError } = await supabase
+            .rpc('usar_cupom', { p_cupom_id: cupomAplicado.id });
+
+          if (cupomRPCError) {
+            // Fallback: UPDATE direto (sujeito a race condition)
+            await base44.entities.CupomDesconto.update(cupomAplicado.id, {
+              uso_atual: (cupomAplicado.uso_atual || 0) + 1
+            });
+          } else if (cupomResult === false) {
+            // A RPC retorna false quando o cupom atingiu o limite enquanto processávamos
+            throw new Error('Cupom atingiu o limite máximo de uso durante o processamento. Tente outro cupom.');
+          }
         } catch (err) {
-          console.error("Erro ao atualizar uso do cupom:", err);
+          if (err.message?.includes('Cupom')) throw err; // Re-lança erros de negócio
+          console.error("Erro ao atualizar uso do cupom:", err?.code);
         }
       }
 
@@ -1223,6 +1304,8 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
               <div className="relative flex-1">
                 <Search className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 sm:w-5 sm:h-5" />
                 <Input
+                  id="busca-produto"
+                  name="busca-produto"
                   ref={inputBuscaRef}
                   placeholder="Buscar produto..."
                   value={searchTerm}
@@ -1316,7 +1399,7 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
                     <CardContent className="p-2 sm:p-3">
                       <div className="aspect-square bg-slate-100 rounded mb-1 sm:mb-2 flex items-center justify-center overflow-hidden">
                         {produto.imagem_url ? (
-                          <img src={produto.imagem_url} alt={produto.nome} className="w-full h-full object-cover rounded" />
+                          <img src={produto.imagem_url} alt={produto.nome} loading="lazy" className="w-full h-full object-cover rounded" />
                         ) : (
                           <Package className="w-8 h-8 sm:w-10 sm:h-10 text-slate-400" />
                         )}
@@ -1468,6 +1551,8 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
                   <span className="text-xs sm:text-sm text-slate-600">Desconto (%):</span>
                   <div className="relative">
                     <Input
+                      id="desconto-venda"
+                      name="desconto-venda"
                       type="number"
                       step="0.5"
                       min="0"
@@ -1560,6 +1645,8 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
           <div className="space-y-3">
             <div className="sticky top-0 bg-white z-10 pb-3 space-y-2">
               <Input
+                id="busca-cliente"
+                name="busca-cliente"
                 placeholder="Buscar cliente por nome, telefone ou CPF..."
                 value={buscaClientePDV}
                 onChange={(e) => setBuscaClientePDV(e.target.value)}
@@ -1718,6 +1805,8 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
                       <div>
                         <Label>Parcelas</Label>
                         <Input
+                          id={`parcelas-${index}`}
+                          name={`parcelas-${index}`}
                           type="number"
                           min="2"
                           max="24"
@@ -1850,6 +1939,8 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
             <div>
               <Label>Código de Barras do Cartão de Autorização</Label>
               <Input
+                id="barcode-autorizacao"
+                name="barcode-autorizacao"
                 ref={barcodeInputRef}
                 type="text"
                 placeholder="Escaneie o código de barras..."
@@ -1874,8 +1965,8 @@ Forma(s) de Pagamento: ${(venda.pagamentos || []).map(p => p.forma_pagamento).jo
                 R$ {((calcularSubtotal() * descontoTemporario) / 100).toFixed(2)})
               </p>
               <p className="text-slate-600">
-                Limite sem autorização: <strong className="text-orange-600">{configuracoes?.pdv?.solicitar_senha_desconto_acima || 10}%</strong> (
-                R$ {((calcularSubtotal() * (configuracoes?.pdv?.solicitar_senha_desconto_acima || 10)) / 100).toFixed(2)})
+                Limite sem autorização: <strong className="text-orange-600">{configERP?.pdv?.solicitar_senha_desconto_acima || 10}%</strong> (
+                R$ {((calcularSubtotal() * (configERP?.pdv?.solicitar_senha_desconto_acima || 10)) / 100).toFixed(2)})
               </p>
             </div>
           </div>

@@ -32,7 +32,7 @@ export default function RelatorioComissoes() {
       try {
         return lojaFiltroId
           ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId })
-          : lojaFiltroId ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }) : await base44.entities.Comissao.list();
+          : await base44.entities.Comissao.list();
       } catch {
         return [];
       }

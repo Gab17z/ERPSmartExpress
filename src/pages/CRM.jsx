@@ -59,9 +59,17 @@ export default function CRM() {
 
   const { data: leads = [] } = useQuery({
     queryKey: ['leads', lojaFiltroId],
-    queryFn: () => lojaFiltroId
-      ? base44.entities.LeadCRM.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-      : lojaFiltroId ? base44.entities.LeadCRM.filter({ loja_id: lojaFiltroId }, { order: '-created_date' }) : base44.entities.LeadCRM.list('-created_date'),
+    queryFn: async () => {
+      try {
+        // Tenta filtrar por loja_id — se a coluna não existir (400), cai no catch
+        return lojaFiltroId
+          ? await base44.entities.LeadCRM.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+          : await base44.entities.LeadCRM.list('-created_date');
+      } catch {
+        // Fallback: buscar tudo sem filtro de loja
+        try { return await base44.entities.LeadCRM.list('-created_date'); } catch { return []; }
+      }
+    },
   });
 
   const createMutation = useMutation({

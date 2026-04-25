@@ -84,7 +84,10 @@ class Entity {
               const entries = Object.entries(v);
               if (entries.length === 0) return null;
               const [k, val] = entries[0];
-              if (val === null) return `${k}.is.null`;
+              // CORREÇÃO: Tratar strings vazias ou "global" como null para colunas UUID
+              if (val === null || val === "" || val === "global" || val === "undefined") {
+                return `${k}.is.null`;
+              }
               return `${k}.eq.${val}`;
             }).filter(Boolean).join(',');
             
@@ -93,7 +96,7 @@ class Entity {
             }
           } else if (Array.isArray(value)) {
             query = query.in(key, value);
-          } else if (value === null) {
+          } else if (value === null || value === "" || value === "global") {
             query = query.is(key, null);
           } else {
             query = query.eq(key, value);

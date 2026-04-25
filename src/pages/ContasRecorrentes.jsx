@@ -47,7 +47,7 @@ export default function ContasRecorrentes() {
       try {
         return lojaFiltroId
           ? await base44.entities.ContaRecorrente.filter({ loja_id: lojaFiltroId }, { order: 'descricao' })
-          : lojaFiltroId ? await base44.entities.ContaRecorrente.filter({ loja_id: lojaFiltroId }, { order: 'descricao' }) : await base44.entities.ContaRecorrente.list('descricao');
+          : await base44.entities.ContaRecorrente.list('descricao');
       } catch {
         return [];
       }
@@ -59,7 +59,7 @@ export default function ContasRecorrentes() {
     queryKey: ['fornecedores', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Fornecedor.filter({ loja_id: lojaFiltroId }, { order: 'nome_fantasia' })
-      : lojaFiltroId ? base44.entities.Fornecedor.filter({ loja_id: lojaFiltroId }, { order: 'nome_fantasia' }) : base44.entities.Fornecedor.list('nome_fantasia'),
+      : base44.entities.Fornecedor.list('nome_fantasia'),
   });
 
   // CORREÇÃO: Buscar categorias dinâmicas do banco
