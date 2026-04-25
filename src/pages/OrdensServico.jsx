@@ -220,9 +220,17 @@ export default function OrdensServico() {
 
   const { data: ordensServico = [] } = useQuery({
     queryKey: ['ordens-servico', lojaFiltroId],
-    queryFn: () => lojaFiltroId
-      ? base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-      : base44.entities.OrdemServico.list('-created_date'),
+    // S06 FIX: Se não há loja selecionada e não é admin, retornar vazio
+    queryFn: () => {
+      if (lojaFiltroId) {
+        return base44.entities.OrdemServico.filter({ loja_id: lojaFiltroId }, { order: '-created_date' });
+      }
+      // Admin sem loja selecionada vê todas as lojas
+      const isAdmin = user?.permissoes?.administrador_sistema === true;
+      return isAdmin
+        ? base44.entities.OrdemServico.list('-created_date')
+        : []; // Não-admin sem loja não vê nada
+    },
   });
 
   const { data: clientes = [] } = useQuery({
@@ -256,8 +264,10 @@ export default function OrdensServico() {
       let proximoNumero = 1;
       try {
         // OTIMIZAÇÃO: Buscar apenas a última OS criada para descobrir o próximo número
-        // Isso evita carregar milhares de registros na memória
-        const ultimasOS = await base44.entities.OrdemServico.list('-codigo_os', 1);
+        // Filtrar por loja_id para ter sequências independentes (opcional, mas recomendado para isolamento)
+        const ultimasOS = await base44.entities.OrdemServico.filter({ 
+          loja_id: lojaFiltroId || user?.loja_id || null 
+        }, { order: '-codigo_os', limit: 1 });
         
         if (ultimasOS && ultimasOS.length > 0) {
           const ultimoCodigo = ultimasOS[0].codigo_os || "";

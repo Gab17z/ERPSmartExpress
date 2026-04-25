@@ -60,7 +60,7 @@ export default function Categorias() {
 
   const createMutation = useMutation({
     mutationFn: (data) => {
-      const dataWithLoja = { ...data, loja_id: lojaFiltroId || null };
+      const dataWithLoja = { ...data, loja_id: lojaFiltroId || user?.loja_id || null };
       return base44.entities.Categoria.create(dataWithLoja);
     },
     onSuccess: () => {

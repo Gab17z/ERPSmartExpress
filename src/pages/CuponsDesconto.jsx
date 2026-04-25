@@ -58,7 +58,7 @@ export default function CuponsDesconto() {
       if (codigoDuplicado) {
         throw new Error("Já existe um cupom com este código!");
       }
-      return base44.entities.CupomDesconto.create({ ...data, loja_id: lojaFiltroId || null });
+      return base44.entities.CupomDesconto.create({ ...data, loja_id: lojaFiltroId || user?.loja_id || null });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cupons', lojaFiltroId] });

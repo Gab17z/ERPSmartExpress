@@ -86,6 +86,11 @@ export default function Caixa() {
   const { data: caixas = [], isLoading } = useQuery({
     queryKey: ['caixas', lojaFiltroId],
     queryFn: () => base44.entities.Caixa.list('-created_date'),
+    // P01 FIX: Caixa é dado crítico em tempo real
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchInterval: 30000,
   });
 
   // Procurar caixa aberto: da loja selecionada OU um caixa global (null) aberto por admin
@@ -118,9 +123,11 @@ export default function Caixa() {
 
   const { data: usuariosSistema = [] } = useQuery({
     queryKey: ['usuarios_sistema_caixa', lojaFiltroId],
+    // C06 FIX: A lógica original era: lojaFiltroId ? filter : lojaFiltroId ? filter : list
+    // — a segunda condição nunca era falsa se a primeira passasse, então o list nunca era chamado
     queryFn: () => lojaFiltroId
-      ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId })
-      : lojaFiltroId ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId }, { order: 'nome' }) : base44.entities.UsuarioSistema.list('nome'),
+      ? base44.entities.UsuarioSistema.filter({ loja_id: lojaFiltroId }, { order: 'nome' })
+      : base44.entities.UsuarioSistema.list('nome'),
   });
 
 
@@ -193,7 +200,7 @@ export default function Caixa() {
         data_abertura: new Date().toISOString(),
         valor_inicial: valorInicial,
         observacoes: obsAbertura,
-        loja_id: lojaFiltroId || null,
+        loja_id: lojaFiltroId || user?.loja_id || null,
         status: 'aberto'
       });
     },
@@ -252,7 +259,7 @@ export default function Caixa() {
         descricao: descricaoMovimentacao + (aprovado ? ` | Aprovado por: ${user?.nome || 'Gerente'}` : ''),
         usuario_id: user?.id || null,
         usuario_nome: user?.nome || "Usuário", // Campo extra para exibição
-        loja_id: lojaFiltroId || null
+        loja_id: lojaFiltroId || user?.loja_id || null
       };
 
       const movimentacao = await base44.entities.MovimentacaoCaixa.create(movimentacaoData);
@@ -314,7 +321,7 @@ export default function Caixa() {
         descricao: descricaoMovimentacao,
         usuario_id: user?.id || null,
         usuario_nome: user?.nome || "Usuário", // Campo extra para exibição
-        loja_id: lojaFiltroId || null
+        loja_id: lojaFiltroId || user?.loja_id || null
       };
 
       const movimentacao = await base44.entities.MovimentacaoCaixa.create(movimentacaoData);

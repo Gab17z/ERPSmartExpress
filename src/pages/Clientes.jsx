@@ -155,9 +155,7 @@ export default function Clientes() {
       // CRÍTICO: Garantir atribuição ao usuário e loja_id (Regra de Ouro)
       const dataWithLoja = { 
         ...data, 
-        loja_id: lojaFiltroId || user?.loja_id || null,
-        cadastrado_por_id: user?.id || null,
-        cadastrado_por_nome: user?.nome || null
+        loja_id: lojaFiltroId || user?.loja_id || null
       };
       return base44.entities.Cliente.create(dataWithLoja);
     },

@@ -171,7 +171,7 @@ export default function Produtos() {
 
   const createMutation = useMutation({
     mutationFn: async (data) => {
-      const dataWithLoja = { ...data, loja_id: lojaFiltroId || null };
+      const dataWithLoja = { ...data, loja_id: lojaFiltroId || user?.loja_id || null };
       const resultado = await base44.entities.Produto.create(dataWithLoja);
 
       // Registrar log de auditoria

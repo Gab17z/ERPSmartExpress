@@ -47,7 +47,7 @@ export default function ContasPagar() {
       try {
         return lojaFiltroId
           ? await base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' })
-          : lojaFiltroId ? await base44.entities.ContaPagar.filter({ loja_id: lojaFiltroId }, { order: '-data_vencimento' }) : await base44.entities.ContaPagar.list('-data_vencimento');
+          : await base44.entities.ContaPagar.list('-data_vencimento');
       } catch {
         return [];
       }
@@ -61,7 +61,7 @@ export default function ContasPagar() {
       try {
         return lojaFiltroId
           ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId })
-          : lojaFiltroId ? await base44.entities.Comissao.filter({ loja_id: lojaFiltroId }) : await base44.entities.Comissao.list();
+          : await base44.entities.Comissao.list();
       } catch {
         return [];
       }
@@ -73,7 +73,7 @@ export default function ContasPagar() {
     queryKey: ['fornecedores', lojaFiltroId],
     queryFn: () => lojaFiltroId
       ? base44.entities.Fornecedor.filter({ loja_id: lojaFiltroId }, { order: 'nome_fantasia' })
-      : lojaFiltroId ? base44.entities.Fornecedor.filter({ loja_id: lojaFiltroId }, { order: 'nome_fantasia' }) : base44.entities.Fornecedor.list('nome_fantasia'),
+      : base44.entities.Fornecedor.list('nome_fantasia'),
   });
 
   // CORREÇÃO: Buscar categorias dinâmicas do banco
@@ -99,7 +99,7 @@ export default function ContasPagar() {
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.ContaPagar.create({
       ...data,
-      loja_id: lojaFiltroId || null
+      loja_id: lojaFiltroId || user?.loja_id || null
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contas-pagar'] });
@@ -130,7 +130,7 @@ export default function ContasPagar() {
       valor: valorNumerico,
       status: "pendente",
       data_vencimento: formData.data_vencimento,
-      loja_id: lojaFiltroId || null
+      loja_id: lojaFiltroId || user?.loja_id || null
     });
   };
 

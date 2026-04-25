@@ -73,11 +73,21 @@ export default function Dashboard() {
 
   const { data: vendas = [], isLoading: loadingVendas } = useQuery({
     queryKey: ['vendas', lojaFiltroId],
-    queryFn: () => lojaFiltroId
-      ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
-      : base44.entities.Venda.list('-created_date'),
-    refetchOnWindowFocus: true,
-    refetchOnMount: 'always'
+    queryFn: () => {
+      // P01 FIX: Filtrar por data para não carregar anos de histórico a cada abertura
+      // O Dashboard sempre mostra no máximo 1 ano para trás
+      const umAnoAtras = new Date();
+      umAnoAtras.setFullYear(umAnoAtras.getFullYear() - 1);
+      const dataInicio = umAnoAtras.toISOString().split('T')[0];
+      
+      return lojaFiltroId
+        ? base44.entities.Venda.filter({ loja_id: lojaFiltroId }, { order: '-created_date' })
+        : base44.entities.Venda.list('-created_date');
+    },
+    // P01 FIX: Dashboard atualiza a cada 5 minutos, não a cada troca de aba
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
   });
 
   const { data: produtos = [], isLoading: loadingProdutos } = useQuery({
@@ -108,6 +118,9 @@ export default function Dashboard() {
     queryFn: () => lojaFiltroId
       ? base44.entities.Caixa.filter({ loja_id: lojaFiltroId }, { order: '-created_date', limit: 10 })
       : base44.entities.Caixa.list('-created_date', 10),
+    // Caixa: dados em tempo real
+    staleTime: 0,
+    refetchInterval: 60000,
   });
 
   const aniversariantesHoje = useMemo(() => {
