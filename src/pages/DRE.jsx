@@ -30,7 +30,7 @@ export default function DRE() {
     queryFn: () => lojaFiltroId 
       ? base44.entities.Venda.filter({ loja_id: lojaFiltroId })
       : base44.entities.Venda.list(),
-    refetchInterval: 30000
+    refetchInterval: false
   });
 
   const { data: produtos = [] } = useQuery({
@@ -38,7 +38,7 @@ export default function DRE() {
     queryFn: () => lojaFiltroId
       ? base44.entities.Produto.filter({ loja_id: lojaFiltroId })
       : base44.entities.Produto.list(),
-    refetchInterval: 30000
+    refetchInterval: false
   });
 
   const { data: contasPagar = [] } = useQuery({
@@ -52,7 +52,7 @@ export default function DRE() {
         return [];
       }
     },
-    refetchInterval: 30000
+    refetchInterval: false
   });
 
   const { data: contasReceber = [] } = useQuery({
@@ -66,7 +66,7 @@ export default function DRE() {
         return [];
       }
     },
-    refetchInterval: 30000
+    refetchInterval: false
   });
 
   const { data: devolucoes = [] } = useQuery({
@@ -80,7 +80,7 @@ export default function DRE() {
         return [];
       }
     },
-    refetchInterval: 30000
+    refetchInterval: false
   });
 
   // Mapa de devoluções aprovadas por venda
@@ -104,7 +104,7 @@ export default function DRE() {
         return [];
       }
     },
-    refetchInterval: 30000
+    refetchInterval: false
   });
 
   // CRÍTICO: DRE com validações financeiras

@@ -52,7 +52,7 @@ export default function ContasPagar() {
         return [];
       }
     },
-    refetchInterval: 15000
+    refetchInterval: 5 * 60 * 1000
   });
 
   const { data: comissoes = [] } = useQuery({
@@ -66,7 +66,7 @@ export default function ContasPagar() {
         return [];
       }
     },
-    refetchInterval: 15000
+    refetchInterval: 5 * 60 * 1000
   });
 
   const { data: fornecedores = [] } = useQuery({

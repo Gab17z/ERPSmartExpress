@@ -374,7 +374,7 @@ export default function Tabela() {
   const { data: configs = [], isLoading } = useQuery({
     queryKey: ["configuracao"],
     queryFn: () => base44.entities.Configuracao.list(),
-    refetchInterval: 30000,
+    refetchInterval: 5 * 60 * 1000,
   });
 
   const configTabela = useMemo(() => configs.find((c) => c.chave === CHAVE), [configs]);
