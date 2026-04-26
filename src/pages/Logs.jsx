@@ -82,29 +82,30 @@ export default function Logs() {
   const canceladasFiltradas = vendas.filter(v => v.status === 'cancelada' && filtrarPorData(v.data_cancelamento || v.created_date));
   const logsCaixa        = caixas.filter(c => filtrarPorData(c.data_abertura));
 
-  // Estoque: log_auditoria onde tabela='produto' e estoque mudou
+  // Estoque: logs onde recurso='Produto' e estoque_atual mudou
   const movimentacoesEstoque = logsFiltrados.filter(l => {
-    if (l.tabela !== 'produto') return false;
-    const ant = l.dados_anteriores;
-    const nov = l.dados_novos;
+    if (l.recurso !== 'Produto') return false;
+    const ant = l.dados_antes;
+    const nov = l.dados_depois;
     if (!ant || !nov) return false;
-    return ant.estoque !== undefined && nov.estoque !== undefined && ant.estoque !== nov.estoque;
+    return ant.estoque_atual !== undefined && nov.estoque_atual !== undefined &&
+      String(ant.estoque_atual) !== String(nov.estoque_atual);
   });
 
-  // Descontos: log_auditoria com acao 'desconto' OU vendas com desconto > 0
+  // Descontos: log_auditoria com acao/recurso de desconto + vendas com desconto
   const logsDesconto = logsFiltrados.filter(l =>
     (l.acao || '').toLowerCase().includes('desconto') ||
-    (l.tabela || '').toLowerCase().includes('desconto')
+    (l.recurso || '').toLowerCase().includes('desconto')
   );
-  // Complementa com vendas que têm desconto
   const vendasComDesconto = vendasFiltradas.filter(v =>
     (parseFloat(v.desconto_percentual) > 0 || parseFloat(v.desconto_valor) > 0)
   );
 
-  // Config: log_auditoria onde tabela='configuracao'
+  // Config: logs de Cargo, Configuracao, Usuario
   const logsConfig = logsFiltrados.filter(l =>
-    (l.tabela || '').toLowerCase().includes('configurac') ||
-    (l.acao || '').toLowerCase().includes('config')
+    ['Cargo', 'Configuracao', 'Usuario', 'Config'].some(r =>
+      (l.recurso || '').toLowerCase().includes(r.toLowerCase())
+    ) || (l.acao || '').toLowerCase().includes('config')
   );
 
   // ── Helpers de exibição ────────────────────────────────────────────
@@ -112,21 +113,28 @@ export default function Logs() {
     try { return d ? format(new Date(d), 'dd/MM/yyyy HH:mm') : '—'; } catch { return '—'; }
   };
 
+  // helper: pega o usuário do log independente do campo
+  const usuarioLog = (log) => log.usuario_nome || log.created_by || 'Sistema';
+  // helper: pega o recurso/tabela do log
+  const recursoLog = (log) => (log.recurso || log.tabela || '').replace(/_/g,' ');
+
   const corAcao = (acao = '') => {
     const a = acao.toLowerCase();
     if (a.includes('delet') || a.includes('cancel') || a.includes('exclu')) return 'destructive';
-    if (a.includes('creat') || a.includes('cria') || a.includes('insert')) return 'default';
+    if (a.includes('creat') || a.includes('cria') || a.includes('insert') || a.includes('criar')) return 'default';
     return 'secondary';
   };
 
   const labelAcao = (acao = '') => acao.replace(/_/g, ' ');
 
   const descricaoLog = (log) => {
-    const nov = log.dados_novos;
-    const ant = log.dados_anteriores;
+    // Se tem campo descricao, usar direto
+    if (log.descricao) return log.descricao;
+    const nov = log.dados_depois || log.dados_novos;
+    const ant = log.dados_antes || log.dados_anteriores;
     if (!nov && !ant) return '—';
     const campos = Object.keys(nov || ant || {})
-      .filter(k => !['id','created_date','updated_date','created_by_id'].includes(k))
+      .filter(k => !['id','created_date','updated_date','created_by_id','usuario_id','loja_id'].includes(k))
       .slice(0, 4)
       .map(k => {
         const vAnt = ant?.[k];
@@ -209,9 +217,9 @@ export default function Logs() {
                   {paginado(logsFiltrados, 'auditoria').map((log) => (
                     <TableRow key={log.id}>
                       <TableCell className="text-xs whitespace-nowrap">{formatData(dataRef(log))}</TableCell>
-                      <TableCell className="font-medium">{log.created_by || 'Sistema'}</TableCell>
+                      <TableCell className="font-medium">{usuarioLog(log)}</TableCell>
                       <TableCell><Badge variant={corAcao(log.acao)}>{labelAcao(log.acao)}</Badge></TableCell>
-                      <TableCell className="text-sm text-slate-600">{log.tabela?.replace(/_/g,' ')}</TableCell>
+                      <TableCell className="text-sm text-slate-600">{recursoLog(log)}</TableCell>
                       <TableCell className="text-xs text-slate-500 max-w-xs truncate">{descricaoLog(log)}</TableCell>
                     </TableRow>
                   ))}
@@ -288,10 +296,10 @@ export default function Logs() {
                 </TableHeader>
                 <TableBody>
                   {paginado(movimentacoesEstoque, 'estoque').map((log) => {
-                    const ant = parseFloat(log.dados_anteriores?.estoque ?? 0);
-                    const nov = parseFloat(log.dados_novos?.estoque ?? 0);
+                    const ant = parseFloat(log.dados_antes?.estoque_atual ?? log.dados_anteriores?.estoque ?? 0);
+                    const nov = parseFloat(log.dados_depois?.estoque_atual ?? log.dados_novos?.estoque ?? 0);
                     const diff = nov - ant;
-                    const nomeProduto = log.dados_novos?.nome || log.dados_anteriores?.nome || log.registro_id;
+                    const nomeProduto = log.dados_depois?.nome || log.dados_antes?.nome || log.descricao || log.recurso_id || '—';
                     return (
                       <TableRow key={log.id}>
                         <TableCell className="text-xs">{formatData(dataRef(log))}</TableCell>
@@ -303,7 +311,7 @@ export default function Logs() {
                             {diff > 0 ? '+' : ''}{diff}
                           </span>
                         </TableCell>
-                        <TableCell className="text-sm">{log.created_by || 'Sistema'}</TableCell>
+                        <TableCell className="text-sm">{usuarioLog(log)}</TableCell>
                       </TableRow>
                     );
                   })}
@@ -379,7 +387,7 @@ export default function Logs() {
                       {logsDesconto.slice(0, 50).map((log) => (
                         <TableRow key={log.id}>
                           <TableCell className="text-xs">{formatData(dataRef(log))}</TableCell>
-                          <TableCell>{log.created_by || 'Sistema'}</TableCell>
+                          <TableCell>{usuarioLog(log)}</TableCell>
                           <TableCell><Badge variant="outline">{labelAcao(log.acao)}</Badge></TableCell>
                           <TableCell className="text-xs text-slate-500">{descricaoLog(log)}</TableCell>
                         </TableRow>
@@ -505,9 +513,9 @@ export default function Logs() {
                   {paginado(logsConfig, 'config').map((log) => (
                     <TableRow key={log.id}>
                       <TableCell className="text-xs">{formatData(dataRef(log))}</TableCell>
-                      <TableCell>{log.created_by || 'Sistema'}</TableCell>
+                      <TableCell>{usuarioLog(log)}</TableCell>
                       <TableCell><Badge variant="outline">{labelAcao(log.acao)}</Badge></TableCell>
-                      <TableCell className="text-sm text-slate-600">{log.tabela?.replace(/_/g,' ')}</TableCell>
+                      <TableCell className="text-sm text-slate-600">{recursoLog(log)}</TableCell>
                       <TableCell className="text-xs text-slate-500 max-w-xs truncate">{descricaoLog(log)}</TableCell>
                     </TableRow>
                   ))}
