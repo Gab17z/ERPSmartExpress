@@ -62,7 +62,7 @@ export default function Comissoes() {
     queryFn: () => lojaFiltroId
       ? base44.entities.Venda.filter({ loja_id: lojaFiltroId })
       : base44.entities.Venda.list(),
-    refetchInterval: 30000
+    refetchInterval: 5 * 60 * 1000
   });
 
   const { data: comissoes = [] } = useQuery({
@@ -76,7 +76,7 @@ export default function Comissoes() {
         return [];
       }
     },
-    refetchInterval: 30000
+    refetchInterval: 5 * 60 * 1000
   });
 
   const { data: usuariosSistema = [] } = useQuery({

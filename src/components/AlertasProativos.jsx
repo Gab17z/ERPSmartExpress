@@ -11,7 +11,7 @@ export default function AlertasProativos() {
   const { data: produtos = [] } = useQuery({
     queryKey: ['produtos'],
     queryFn: () => base44.entities.Produto.list(),
-    refetchInterval: 60000
+    refetchInterval: 15 * 60 * 1000
   });
 
   const { data: contasPagar = [] } = useQuery({
@@ -23,25 +23,25 @@ export default function AlertasProativos() {
         return [];
       }
     },
-    refetchInterval: 60000
+    refetchInterval: 15 * 60 * 1000
   });
 
   const { data: os = [] } = useQuery({
     queryKey: ['os'],
     queryFn: () => base44.entities.OrdemServico.list(),
-    refetchInterval: 60000
+    refetchInterval: 15 * 60 * 1000
   });
 
   const { data: vendas = [] } = useQuery({
     queryKey: ['vendas'],
     queryFn: () => base44.entities.Venda.list(),
-    refetchInterval: 60000
+    refetchInterval: 15 * 60 * 1000
   });
 
   const { data: clientes = [] } = useQuery({
     queryKey: ['clientes'],
     queryFn: () => base44.entities.Cliente.list(),
-    refetchInterval: 60000
+    refetchInterval: 15 * 60 * 1000
   });
 
   const hoje = startOfDay(new Date());

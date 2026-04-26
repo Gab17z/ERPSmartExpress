@@ -55,7 +55,7 @@ export default function NotificacoesRealTime() {
         return [];
       }
     },
-    refetchInterval: 60000 // Atualizar a cada 1 minuto (menos carga)
+    refetchInterval: 60 * 60 * 1000 // Atualizar a cada 1 minuto (menos carga)
   });
 
   // Marcar como lida

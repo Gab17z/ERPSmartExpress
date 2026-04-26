@@ -26,7 +26,7 @@ export default function RentabilidadeLoja() {
   const { data: lojas = [] } = useQuery({
     queryKey: ['lojas'],
     queryFn: () => base44.entities.Loja.list(),
-    refetchInterval: 30000
+    refetchInterval: false
   });
 
   const { data: vendas = [] } = useQuery({
@@ -34,7 +34,7 @@ export default function RentabilidadeLoja() {
     queryFn: () => lojaFiltroId
       ? base44.entities.Venda.filter({ loja_id: lojaFiltroId })
       : base44.entities.Venda.list('-created_date'),
-    refetchInterval: 30000
+    refetchInterval: false
   });
 
   const { data: produtos = [] } = useQuery({
@@ -42,7 +42,7 @@ export default function RentabilidadeLoja() {
     queryFn: () => lojaFiltroId
       ? base44.entities.Produto.filter({ loja_id: lojaFiltroId })
       : base44.entities.Produto.list(),
-    refetchInterval: 30000
+    refetchInterval: false
   });
 
   const { data: comissoes = [] } = useQuery({

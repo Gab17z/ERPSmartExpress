@@ -48,7 +48,7 @@ export default function Devolucoes() {
         return [];
       }
     },
-    refetchInterval: 30000
+    refetchInterval: 5 * 60 * 1000
   });
 
   const { data: vendas = [] } = useQuery({

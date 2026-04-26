@@ -55,7 +55,7 @@ export default function ContasReceber() {
           return [];
         }
       },
-    refetchInterval: 30000
+    refetchInterval: 5 * 60 * 1000
   });
 
   const { data: clientes = [] } = useQuery({

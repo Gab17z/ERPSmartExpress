@@ -33,7 +33,7 @@ export default function AnalisesCurvaABC() {
     queryFn: () => lojaFiltroId
       ? base44.entities.Venda.filter({ loja_id: lojaFiltroId })
       : base44.entities.Venda.list(),
-    refetchInterval: 30000
+    refetchInterval: false
   });
 
   const { data: produtos = [] } = useQuery({

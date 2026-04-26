@@ -52,7 +52,7 @@ export default function ContasBancarias() {
         return [];
       }
     },
-    refetchInterval: 30000
+    refetchInterval: 5 * 60 * 1000
   });
 
   const createMutation = useMutation({
