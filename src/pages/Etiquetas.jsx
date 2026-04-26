@@ -67,6 +67,8 @@ export default function Etiquetas() {
     codigo: "",
     codigoBarras: "",
     logo: false,
+    logoMaxW: 60,   // % do tamanho da etiqueta
+    logoMaxH: 30,   // % da altura da etiqueta
     incluirCodigoBarras: false,
     saudeBateria: "",
     quantidade: 1
@@ -643,7 +645,7 @@ export default function Etiquetas() {
               padding: 0.5mm 0.8mm 0.8mm 0.8mm;
               overflow: hidden;
             }
-            .logo { max-width: ${medidas.logo_largura_max}; max-height: ${medidas.logo_altura_max}; margin-top: ${medidas.logo_margem_top}; margin-bottom: ${medidas.logo_margem_bottom}; object-fit: contain; display: block; margin-left: auto; margin-right: auto; }
+            .logo { max-width: ${config.logoMaxW ? `${Math.round(40 * config.logoMaxW / 100)}mm` : medidas.logo_largura_max}; max-height: ${config.logoMaxH ? `${Math.round(25 * config.logoMaxH / 100)}mm` : medidas.logo_altura_max}; margin-top: ${medidas.logo_margem_top}; margin-bottom: ${medidas.logo_margem_bottom}; object-fit: contain; display: block; margin-left: auto; margin-right: auto; }
             .texto { font-weight: 600; font-size: ${medidas.texto_fonte}; line-height: ${medidas.texto_line_height}; margin: ${medidas.texto_margem_top} 0 ${medidas.texto_margem_bottom} 0; max-width: 38mm; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
             .preco { font-size: ${medidas.preco_fonte}; font-weight: bold; color: #059669; line-height: ${medidas.preco_line_height}; margin: ${medidas.preco_margem} 0; }
             .codigo { font-family: monospace; font-size: ${medidas.sku_fonte}; margin-top: ${medidas.sku_margem_top}; line-height: ${medidas.sku_line_height}; }
@@ -753,8 +755,8 @@ export default function Etiquetas() {
           }
           .etiqueta:last-child { page-break-after: auto; }
           .logo { 
-            max-width: ${medidas.logo_largura_max}; 
-            max-height: ${medidas.logo_altura_max}; 
+            max-width: ${(() => { if (config.logoMaxW) { const w = parseFloat(tam.width); return `${Math.round(w * config.logoMaxW / 100)}mm`; } return medidas.logo_largura_max; })()}; 
+            max-height: ${(() => { if (config.logoMaxH) { const h = parseFloat(tam.height); return `${Math.round(h * config.logoMaxH / 100)}mm`; } return medidas.logo_altura_max; })()}; 
             margin-top: ${medidas.logo_margem_top};
             margin-bottom: ${medidas.logo_margem_bottom};
             display: block;
@@ -934,12 +936,38 @@ export default function Etiquetas() {
                     <input
                       type="checkbox"
                       checked={config.logo}
-                      onChange={(e) => setConfig({ ...config, logo: e.target.checked })}
+                      onChange={(e) => { const v = e.target.checked; setConfig(prev => ({ ...prev, logo: v })); }}
                       className="sr-only peer"
                     />
                     <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
                 </div>
+
+                {/* Controles de tamanho da logo — só aparece se logo ativada */}
+                {config.logo && (
+                  <div className="grid grid-cols-2 gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div>
+                      <Label className="text-xs">Largura Logo ({config.logoMaxW || 60}%)</Label>
+                      <input
+                        type="range"
+                        min="10" max="100" step="5"
+                        value={config.logoMaxW || 60}
+                        onChange={(e) => { const v = parseInt(e.target.value); setConfig(prev => ({ ...prev, logoMaxW: v })); }}
+                        className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600 mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Altura Logo ({config.logoMaxH || 30}%)</Label>
+                      <input
+                        type="range"
+                        min="5" max="80" step="5"
+                        value={config.logoMaxH || 30}
+                        onChange={(e) => { const v = parseInt(e.target.value); setConfig(prev => ({ ...prev, logoMaxH: v })); }}
+                        className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-blue-600 mt-1"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
@@ -1216,17 +1244,18 @@ export default function Etiquetas() {
                       {config.logo && (() => {
                         const configuracoes = JSON.parse(localStorage.getItem('configuracoes_erp') || '{}');
                         const logoUrl = configuracoes.empresa?.logo_url;
+                        // Base pixel de referência da etiqueta para calcular %
+                        const baseW = tamanho === '30x20' ? 75 : tamanho === '40x25' ? 100 : tamanho === '50x30' ? 125 : tamanho === '60x40' ? 151 : tamanho === '70x50' ? 189 : tamanho === '80x60' ? 226 : 264;
+                        const baseH = tamanho === '30x20' ? 47 : tamanho === '40x25' ? 63 : tamanho === '50x30' ? 75 : tamanho === '60x40' ? 100 : 125;
+                        const logoW = `${Math.round(baseW * (config.logoMaxW || 60) / 100)}px`;
+                        const logoH = `${Math.round(baseH * (config.logoMaxH || 30) / 100)}px`;
                         return logoUrl ? (
                           <img
                             src={logoUrl}
                             alt="Logo"
                             style={{
-                              maxWidth: tamanho === '30x20' ? '20px' :
-                                tamanho === '40x25' ? '25px' :
-                                  tamanho === '50x30' ? '30px' : '40px',
-                              maxHeight: tamanho === '30x20' ? '15px' :
-                                tamanho === '40x25' ? '20px' :
-                                  tamanho === '50x30' ? '25px' : '30px',
+                              maxWidth: logoW,
+                              maxHeight: logoH,
                               marginBottom: '4px',
                               objectFit: 'contain'
                             }}

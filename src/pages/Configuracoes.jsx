@@ -37,7 +37,14 @@ import {
   Zap,
   QrCode,
   CloudOff,
-  ShieldCheck
+  ShieldCheck,
+  X,
+  Filter,
+  Search,
+  RefreshCw,
+  Clock,
+  AlertTriangle,
+  FileText
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -595,6 +602,20 @@ export default function Configuracoes() {
   const [progressoBackup, setProgressoBackup] = useState({ atual: 0, total: 0, tabela: "" });
   const [dialogBackup, setDialogBackup] = useState(false); // Dialog for backup progress
   const [tipoBackup, setTipoBackup] = useState("completo"); // "completo" ou "configuracoes"
+
+  // ── LOGS DE AUDITORIA ─────────────────────────────────────────
+  const [logFiltroAcao, setLogFiltroAcao] = useState("");
+  const [logFiltroTabela, setLogFiltroTabela] = useState("");
+  const [logBusca, setLogBusca] = useState("");
+  const [logPagina, setLogPagina] = useState(1);
+  const LOG_POR_PAGINA = 50;
+
+  const { data: logsAuditoria = [], isLoading: loadingLogs, refetch: refetchLogs } = useQuery({
+    queryKey: ['log_auditoria'],
+    queryFn: () => base44.entities.LogAuditoria.list('-created_date', 500),
+    staleTime: 60 * 1000, // 1 minuto
+    refetchOnWindowFocus: false,
+  });
 
   const [campoSelecionado, setCampoSelecionado] = useState(null);
   const [templateOS, setTemplateOS] = useState({
@@ -4037,36 +4058,194 @@ export default function Configuracoes() {
 
             <TabsContent value="logs">
               <Card className="border-none shadow-lg">
-                <CardHeader><CardTitle><Bell className="w-5 h-5 inline mr-2" />Logs e Auditoria</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-orange-500" />
+                    Logs de Auditoria do Sistema
+                  </CardTitle>
+                  <p className="text-sm text-slate-500">Rastreio completo: quem acessou, alterou, deu desconto ou mexeu no estoque.</p>
+                </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Habilitar Logs de Auditoria</Label>
-                      <p className="text-sm text-slate-500">Registrar todas as ações no sistema</p>
+
+                  {/* Configurações de log */}
+                  <div className="flex flex-wrap items-center gap-4 p-4 bg-slate-50 rounded-lg">
+                    <div className="flex items-center justify-between gap-3 flex-1 min-w-[200px]">
+                      <div>
+                        <Label>Registrar logs de auditoria</Label>
+                        <p className="text-xs text-slate-500">Ativa rastreio de todas as ações</p>
+                      </div>
+                      <Switch
+                        checked={configuracoes.sistema?.logs_auditoria ?? configuracoesDefault.sistema.logs_auditoria}
+                        onCheckedChange={(c) => handleChange('sistema', 'logs_auditoria', c)}
+                      />
                     </div>
-                    <Switch
-                      checked={configuracoes.sistema?.logs_auditoria ?? configuracoesDefault.sistema.logs_auditoria}
-                      onCheckedChange={(c) => handleChange('sistema', 'logs_auditoria', c)}
-                    />
+                    <Button variant="outline" size="sm" onClick={() => { setLogPagina(1); refetchLogs(); }}>
+                      <RefreshCw className="w-4 h-4 mr-1" /> Atualizar
+                    </Button>
                   </div>
 
-                  <Separator />
-
-                  <div>
-                    <Label>Nível de Log</Label>
-                    <Select
-                      value={configuracoes.sistema?.nivel_log ?? configuracoesDefault.sistema.nivel_log}
-                      onValueChange={(v) => handleChange('sistema', 'nivel_log', v)}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                  {/* Filtros */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Input
+                        className="pl-9"
+                        placeholder="Buscar por usuário, ação..."
+                        value={logBusca}
+                        onChange={(e) => { setLogBusca(e.target.value); setLogPagina(1); }}
+                      />
+                    </div>
+                    <Select value={logFiltroTabela} onValueChange={(v) => { setLogFiltroTabela(v); setLogPagina(1); }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todas as tabelas" />
+                      </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="debug">Debug (Tudo)</SelectItem>
-                        <SelectItem value="info">Info (Normal)</SelectItem>
-                        <SelectItem value="warning">Warning (Avisos)</SelectItem>
-                        <SelectItem value="error">Error (Apenas Erros)</SelectItem>
+                        <SelectItem value="">Todas as tabelas</SelectItem>
+                        <SelectItem value="venda">Vendas</SelectItem>
+                        <SelectItem value="produto">Produtos</SelectItem>
+                        <SelectItem value="ordem_servico">Ordens de Serviço</SelectItem>
+                        <SelectItem value="usuario">Usuários</SelectItem>
+                        <SelectItem value="configuracao">Configurações</SelectItem>
+                        <SelectItem value="caixa">Caixa</SelectItem>
+                        <SelectItem value="cliente">Clientes</SelectItem>
+                        <SelectItem value="conta_pagar">Contas a Pagar</SelectItem>
+                        <SelectItem value="conta_receber">Contas a Receber</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={logFiltroAcao} onValueChange={(v) => { setLogFiltroAcao(v); setLogPagina(1); }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todos os tipos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Todos os tipos</SelectItem>
+                        <SelectItem value="create">✅ Criação</SelectItem>
+                        <SelectItem value="update">✏️ Alteração</SelectItem>
+                        <SelectItem value="delete">🗑️ Exclusão</SelectItem>
+                        <SelectItem value="login">🔐 Login</SelectItem>
+                        <SelectItem value="desconto">💰 Desconto</SelectItem>
+                        <SelectItem value="estoque">📦 Estoque</SelectItem>
+                        <SelectItem value="cancelamento">❌ Cancelamento</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Lista de logs */}
+                  {loadingLogs ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                    </div>
+                  ) : (() => {
+                    const logsFiltrados = logsAuditoria.filter(log => {
+                      const busca = logBusca.toLowerCase();
+                      const matchBusca = !busca ||
+                        (log.created_by || '').toLowerCase().includes(busca) ||
+                        (log.acao || '').toLowerCase().includes(busca) ||
+                        (log.tabela || '').toLowerCase().includes(busca) ||
+                        JSON.stringify(log.dados_novos || {}).toLowerCase().includes(busca);
+                      const matchTabela = !logFiltroTabela || log.tabela === logFiltroTabela;
+                      const matchAcao = !logFiltroAcao || (log.acao || '').includes(logFiltroAcao);
+                      return matchBusca && matchTabela && matchAcao;
+                    });
+                    const totalPaginas = Math.ceil(logsFiltrados.length / LOG_POR_PAGINA);
+                    const logsPagina = logsFiltrados.slice((logPagina - 1) * LOG_POR_PAGINA, logPagina * LOG_POR_PAGINA);
+
+                    const corAcao = (acao = '') => {
+                      if (acao.includes('delete') || acao.includes('cancel')) return 'bg-red-100 text-red-700';
+                      if (acao.includes('create')) return 'bg-green-100 text-green-700';
+                      if (acao.includes('update') || acao.includes('edit')) return 'bg-blue-100 text-blue-700';
+                      if (acao.includes('login')) return 'bg-purple-100 text-purple-700';
+                      if (acao.includes('desconto')) return 'bg-orange-100 text-orange-700';
+                      if (acao.includes('estoque')) return 'bg-yellow-100 text-yellow-700';
+                      return 'bg-slate-100 text-slate-700';
+                    };
+
+                    const iconeAcao = (acao = '') => {
+                      if (acao.includes('delete') || acao.includes('cancel')) return '🗑️';
+                      if (acao.includes('create')) return '✅';
+                      if (acao.includes('update') || acao.includes('edit')) return '✏️';
+                      if (acao.includes('login')) return '🔐';
+                      if (acao.includes('desconto')) return '💰';
+                      if (acao.includes('estoque')) return '📦';
+                      return '📋';
+                    };
+
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between text-sm text-slate-500">
+                          <span>{logsFiltrados.length} registros encontrados</span>
+                          {totalPaginas > 1 && <span>Página {logPagina} de {totalPaginas}</span>}
+                        </div>
+
+                        {logsPagina.length === 0 ? (
+                          <div className="text-center py-12 text-slate-400">
+                            <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                            <p>Nenhum log encontrado com os filtros selecionados.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {logsPagina.map((log) => {
+                              const dataHora = log.data_hora || log.created_date;
+                              const dataFormatada = dataHora
+                                ? new Date(dataHora).toLocaleString('pt-BR')
+                                : '—';
+                              const usuario = log.created_by || log.usuario_nome || 'Sistema';
+                              const acao = log.acao || 'ação';
+                              const tabela = log.tabela || '';
+
+                              return (
+                                <div key={log.id} className="flex items-start gap-3 p-3 bg-white border border-slate-200 rounded-lg hover:border-slate-300 transition-colors">
+                                  <span className="text-lg mt-0.5 flex-shrink-0">{iconeAcao(acao)}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${corAcao(acao)}`}>
+                                        {acao.replace(/_/g, ' ')}
+                                      </span>
+                                      {tabela && (
+                                        <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                                          {tabela.replace(/_/g, ' ')}
+                                        </span>
+                                      )}
+                                      <span className="text-xs text-slate-400 ml-auto">{dataFormatada}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Shield className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                                      <span className="text-sm font-medium text-slate-700">{usuario}</span>
+                                      {log.ip_address && (
+                                        <span className="text-xs text-slate-400">• IP: {log.ip_address}</span>
+                                      )}
+                                    </div>
+                                    {/* Mostrar mudanças relevantes */}
+                                    {log.dados_novos && typeof log.dados_novos === 'object' && (
+                                      <div className="mt-1 text-xs text-slate-500 truncate">
+                                        {Object.entries(log.dados_novos)
+                                          .filter(([k]) => !['id', 'created_date', 'updated_date', 'created_by_id'].includes(k))
+                                          .slice(0, 3)
+                                          .map(([k, v]) => `${k}: ${typeof v === 'object' ? '(objeto)' : String(v).slice(0, 30)}`)
+                                          .join(' • ')}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Paginação */}
+                        {totalPaginas > 1 && (
+                          <div className="flex items-center justify-center gap-2 pt-2">
+                            <Button variant="outline" size="sm" onClick={() => setLogPagina(p => Math.max(1, p - 1))} disabled={logPagina === 1}>
+                              ← Anterior
+                            </Button>
+                            <span className="text-sm text-slate-500">{logPagina}/{totalPaginas}</span>
+                            <Button variant="outline" size="sm" onClick={() => setLogPagina(p => Math.min(totalPaginas, p + 1))} disabled={logPagina === totalPaginas}>
+                              Próximo →
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </CardContent>
               </Card>
             </TabsContent>

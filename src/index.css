@@ -194,3 +194,152 @@ button:focus-visible {
 *::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+/* ═══════════════════════════════════════════════════
+   MOBILE RESPONSIVO — SmartExpress ERP
+   Funciona em portrait (vertical) sem precisar deitaro celular
+   ═══════════════════════════════════════════════════ */
+
+/* Garante que nada ultrapasse a largura da tela */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* ── TABELAS: scroll horizontal em mobile ── */
+@media (max-width: 768px) {
+  /* Tabelas ficam rolando horizontalmente em vez de quebrar */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    width: 100%;
+  }
+
+  /* Padding geral das páginas reduzido em mobile */
+  .p-6 { padding: 0.75rem !important; }
+  .p-4 { padding: 0.75rem !important; }
+  .px-6 { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+
+  /* Textos grandes ficam menores */
+  .text-2xl { font-size: 1.25rem !important; }
+  .text-3xl { font-size: 1.5rem !important; }
+  .text-4xl { font-size: 1.75rem !important; }
+
+  /* Headers das páginas: empilha verticalmente */
+  .flex.items-center.justify-between {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  /* Botões: touch-friendly */
+  button, [role="button"] {
+    min-height: 40px;
+  }
+
+  /* Grids: 1 coluna em mobile */
+  .grid.grid-cols-2 { grid-template-columns: 1fr !important; }
+  .grid.grid-cols-3 { grid-template-columns: 1fr !important; }
+  .grid.grid-cols-4 { grid-template-columns: 1fr 1fr !important; }
+  .grid.grid-cols-5 { grid-template-columns: 1fr 1fr !important; }
+  .grid.grid-cols-6 { grid-template-columns: 1fr 1fr !important; }
+
+  /* Cards: sem margens grandes */
+  .card, [data-slot="card"] {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  /* Dialog: tela cheia em mobile */
+  [role="dialog"] > div {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+    border-radius: 1rem 1rem 0 0 !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    top: auto !important;
+  }
+
+  /* Tabs: scroll horizontal */
+  [role="tablist"] {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none;
+  }
+  [role="tablist"]::-webkit-scrollbar { display: none; }
+
+  /* Selects e Inputs: largura total */
+  select, input, textarea {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Badges: sem overflow */
+  .badge, [data-slot="badge"] {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+  }
+
+  /* Esconde colunas menos importantes em tabelas */
+  .hidden-mobile { display: none !important; }
+}
+
+/* ── SIDEBAR: hamburger em mobile ── */
+@media (max-width: 768px) {
+  /* O conteúdo principal não fica espremido pela sidebar */
+  [data-slot="sidebar-inset"],
+  .peer-data-\[state\=expanded\]\:pl-\[--sidebar-width\],
+  main[class*="peer"] {
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+  }
+
+  /* Sidebar fica por cima (overlay) quando aberta, escondida por padrão */
+  [data-slot="sidebar"] {
+    position: fixed !important;
+    z-index: 50 !important;
+    height: 100% !important;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+  }
+
+  /* Quando sidebar está expandida: aparece */
+  [data-state="expanded"] [data-slot="sidebar"],
+  [data-slot="sidebar"][data-state="expanded"] {
+    transform: translateX(0) !important;
+  }
+}
+
+/* ── FORMULÁRIOS: labels e inputs empilhados ── */
+@media (max-width: 640px) {
+  .grid.grid-cols-2.gap-4 { grid-template-columns: 1fr !important; }
+  .grid.grid-cols-3.gap-4 { grid-template-columns: 1fr !important; }
+
+  /* Flex row vira coluna em telas pequenas */  
+  .sm\:flex-row { flex-direction: column !important; }
+
+  /* Charts menores */
+  .recharts-responsive-container {
+    min-height: 200px !important;
+  }
+}
+
+/* ── DASHBOARD: cards de métricas ── */
+@media (max-width: 480px) {
+  /* 2 colunas para cards de KPI */
+  .grid.sm\:grid-cols-2.lg\:grid-cols-4 {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+/* ── TOQUES: feedback visual ── */
+@media (hover: none) {
+  /* Remove efeitos hover que não funcionam em touch */
+  *:hover { opacity: 1 !important; }
+  button:active { opacity: 0.85; transform: scale(0.98); }
+}
