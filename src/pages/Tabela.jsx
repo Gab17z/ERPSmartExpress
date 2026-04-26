@@ -22,6 +22,7 @@ import { ptBR } from "date-fns/locale";
 
 const CHAVE = "tabela_precos";
 const CHAVE_ANTERIOR = "tabela_precos_anterior";
+const CHAVE_VISIVEL = "tabela_precos_visivel"; // toggle de visibilidade para colaboradores
 const HOJE = format(new Date(), "yyyy-MM-dd");
 
 // ─────────────────────────────────────────────────────────────
@@ -379,6 +380,14 @@ export default function Tabela() {
 
   const configTabela = useMemo(() => configs.find((c) => c.chave === CHAVE), [configs]);
   const configAnterior = useMemo(() => configs.find((c) => c.chave === CHAVE_ANTERIOR), [configs]);
+  const configVisivel = useMemo(() => configs.find((c) => c.chave === CHAVE_VISIVEL), [configs]);
+  const tabelaVisivel = useMemo(() => {
+    if (!configVisivel) return true; // padrão: visível
+    const v = configVisivel.valor;
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'string') return v !== 'false';
+    return true;
+  }, [configVisivel]);
   const itens = useMemo(() => parseItens(configTabela?.valor), [configTabela]);
   const itensAnteriores = useMemo(() => parseItens(configAnterior?.valor), [configAnterior]);
 
@@ -421,6 +430,25 @@ export default function Tabela() {
       setTimeout(() => window.location.reload(), 1000);
     },
     onError: () => toast.error("Erro ao salvar."),
+  });
+
+  // Toggle de visibilidade da tabela para colaboradores
+  const toggleVisibilidadeMutation = useMutation({
+    mutationFn: async (novoValor) => {
+      if (configVisivel?.id) {
+        return base44.entities.Configuracao.update(configVisivel.id, { valor: novoValor });
+      }
+      return base44.entities.Configuracao.create({
+        chave: CHAVE_VISIVEL,
+        valor: novoValor,
+        descricao: "Visibilidade da Tabela Smart para colaboradores"
+      });
+    },
+    onSuccess: (_, novoValor) => {
+      queryClient.invalidateQueries({ queryKey: ["configuracao"] });
+      toast.success(novoValor ? "✅ Tabela liberada para os colaboradores!" : "🔒 Tabela bloqueada — colaboradores não conseguem ver.");
+    },
+    onError: () => toast.error("Erro ao atualizar visibilidade."),
   });
 
   const entrarEdicao = (base) => {
@@ -581,6 +609,28 @@ export default function Tabela() {
     );
   }
 
+  // ── BLOQUEIO PARA COLABORADORES ──────────────────────────────
+  // Admin vê sempre. Colaboradores só veem quando tabelaVisivel=true
+  if (!tabelaVisivel && !podeEditar) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 p-6">
+        <div className="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center">
+          <Table2 className="w-12 h-12 text-amber-500" />
+        </div>
+        <div className="text-center space-y-2">
+          <h2 className="text-2xl font-bold text-slate-700">Tabela em Atualização</h2>
+          <p className="text-slate-500 max-w-sm">
+            A tabela de preços está sendo atualizada pelo administrador.
+            Aguarde alguns instantes e tente novamente.
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['configuracao'] })}>
+          <RefreshCw className="w-4 h-4 mr-2" /> Verificar novamente
+        </Button>
+      </div>
+    );
+  }
+
   // ── TELA NORMAL ──────────────────────────────────────────────
   return (
     <div className="p-6 space-y-6">
@@ -599,7 +649,24 @@ export default function Tabela() {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          {/* TOGGLE VISIBILIDADE — só admins veem */}
+          {podeEditar && (
+            <Button
+              id="btn-toggle-visibilidade-tabela"
+              size="sm"
+              variant={tabelaVisivel ? "default" : "destructive"}
+              onClick={() => toggleVisibilidadeMutation.mutate(!tabelaVisivel)}
+              disabled={toggleVisibilidadeMutation.isPending}
+              title={tabelaVisivel ? "Bloquear tabela para colaboradores" : "Liberar tabela para colaboradores"}
+            >
+              {tabelaVisivel ? (
+                <><CheckCircle2 className="w-4 h-4 mr-1 text-green-300" /> Tabela Visível</>
+              ) : (
+                <><X className="w-4 h-4 mr-1" /> Tabela Bloqueada</>
+              )}
+            </Button>
+          )}
           {podeEditar && (
             <Button variant="outline" size="sm" onClick={() => setDialogAberto(true)}>
               <FileText className="w-4 h-4 mr-1" /> Importar do Fornecedor
