@@ -946,7 +946,7 @@ export default function Etiquetas() {
                     <Label>Texto Principal</Label>
                     <Input
                       value={config.texto}
-                      onChange={(e) => setConfig({ ...config, texto: e.target.value })}
+                      onChange={(e) => { const v = e.target.value; setConfig(prev => ({ ...prev, texto: v })); }}
                       placeholder="Nome do produto"
                     />
                   </div>
@@ -955,7 +955,7 @@ export default function Etiquetas() {
                     <Input
                       type="number"
                       value={config.tamanhoTexto || 100}
-                      onChange={(e) => setConfig({ ...config, tamanhoTexto: parseInt(e.target.value) || 100 })}
+                      onChange={(e) => { const v = parseInt(e.target.value) || 100; setConfig(prev => ({ ...prev, tamanhoTexto: v })); }}
                       placeholder="100"
                     />
                   </div>
@@ -969,7 +969,7 @@ export default function Etiquetas() {
                         type="number"
                         step="0.01"
                         value={config.preco}
-                        onChange={(e) => setConfig({ ...config, preco: e.target.value })}
+                        onChange={(e) => { const v = e.target.value; setConfig(prev => ({ ...prev, preco: v })); }}
                       />
                     </div>
                     <div>
@@ -977,7 +977,7 @@ export default function Etiquetas() {
                       <Input
                         type="number"
                         value={config.tamanhoPreco || 100}
-                        onChange={(e) => setConfig({ ...config, tamanhoPreco: parseInt(e.target.value) || 100 })}
+                        onChange={(e) => { const v = parseInt(e.target.value) || 100; setConfig(prev => ({ ...prev, tamanhoPreco: v })); }}
                         placeholder="100"
                       />
                     </div>
@@ -990,7 +990,7 @@ export default function Etiquetas() {
                       <Label>IMEI</Label>
                       <Input
                         value={config.codigo}
-                        onChange={(e) => setConfig({ ...config, codigo: e.target.value })}
+                        onChange={(e) => { const v = e.target.value; setConfig(prev => ({ ...prev, codigo: v })); }}
                         placeholder="000000000000000"
                       />
                     </div>
@@ -999,7 +999,7 @@ export default function Etiquetas() {
                       <Input
                         type="number"
                         value={config.tamanhoImei || 100}
-                        onChange={(e) => setConfig({ ...config, tamanhoImei: parseInt(e.target.value) || 100 })}
+                        onChange={(e) => { const v = parseInt(e.target.value) || 100; setConfig(prev => ({ ...prev, tamanhoImei: v })); }}
                         placeholder="100"
                       />
                     </div>
@@ -1015,7 +1015,7 @@ export default function Etiquetas() {
                     <input
                       type="checkbox"
                       checked={config.incluirCodigoBarras}
-                      onChange={(e) => setConfig({ ...config, incluirCodigoBarras: e.target.checked })}
+                      onChange={(e) => { const v = e.target.checked; setConfig(prev => ({ ...prev, incluirCodigoBarras: v })); }}
                       className="sr-only peer"
                     />
                     <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -1027,7 +1027,7 @@ export default function Etiquetas() {
                     <Label>Código de Barras</Label>
                     <Input
                       value={config.codigoBarras}
-                      onChange={(e) => setConfig({ ...config, codigoBarras: e.target.value })}
+                      onChange={(e) => { const v = e.target.value; setConfig(prev => ({ ...prev, codigoBarras: v })); }}
                       placeholder="7891234567890"
                       maxLength={13}
                     />
@@ -1040,7 +1040,7 @@ export default function Etiquetas() {
                       <Label>Saúde da Bateria</Label>
                       <Input
                         value={config.saudeBateria}
-                        onChange={(e) => setConfig({ ...config, saudeBateria: e.target.value })}
+                        onChange={(e) => { const v = e.target.value; setConfig(prev => ({ ...prev, saudeBateria: v })); }}
                         placeholder="Ex: 95%"
                       />
                     </div>
@@ -1049,7 +1049,7 @@ export default function Etiquetas() {
                       <Input
                         type="number"
                         value={config.tamanhoBateria || 100}
-                        onChange={(e) => setConfig({ ...config, tamanhoBateria: parseInt(e.target.value) || 100 })}
+                        onChange={(e) => { const v = parseInt(e.target.value) || 100; setConfig(prev => ({ ...prev, tamanhoBateria: v })); }}
                         placeholder="100"
                       />
                     </div>
@@ -1061,7 +1061,7 @@ export default function Etiquetas() {
                   <Input
                     type="number"
                     value={config.quantidade}
-                    onChange={(e) => setConfig({ ...config, quantidade: parseInt(e.target.value) || 1 })}
+                    onChange={(e) => { const v = parseInt(e.target.value) || 1; setConfig(prev => ({ ...prev, quantidade: v })); }}
                   />
                 </div>
 
