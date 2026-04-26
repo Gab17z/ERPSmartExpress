@@ -1230,11 +1230,38 @@ export default function Configuracoes() {
 
     // Tabelas de log/auditoria
     { nome: "LogDesconto", entidade: "LogDesconto", label: "Logs de Desconto" },
+    { nome: "LogAuditoria", entidade: "LogAuditoria", label: "Logs de Auditoria" },
     { nome: "Notificacao", entidade: "Notificacao", label: "Notificações" },
 
     // Configurações do banco
     { nome: "Configuracao", entidade: "Configuracao", label: "Configurações do Sistema" },
   ];
+
+  // Busca todos os registros com paginação automática (base44.list tem limite por página)
+  const buscarTodosRegistros = async (entidade) => {
+    const PAGE_SIZE = 500;
+    let todos = [];
+    let pagina = 0;
+    let continuar = true;
+
+    while (continuar) {
+      try {
+        const dados = await base44.entities[entidade].list(
+          '-created_date',
+          PAGE_SIZE,
+          pagina * PAGE_SIZE
+        );
+        if (!dados || dados.length === 0) { continuar = false; break; }
+        todos = todos.concat(dados);
+        continuar = dados.length === PAGE_SIZE;
+        pagina++;
+      } catch {
+        // Se a entidade não suporta offset, retorna o que já tem
+        continuar = false;
+      }
+    }
+    return todos;
+  };
 
   // Backup functions for the top-level backup tab
   const exportarBackup = async () => {
@@ -1245,7 +1272,7 @@ export default function Configuracoes() {
       const backup = {
         configuracoes,
         data_backup: new Date().toISOString(),
-        versao: "2.0",
+        versao: "2.1",
         tipo: tipoBackup,
         dados: {}
       };
@@ -1255,10 +1282,11 @@ export default function Configuracoes() {
 
         for (let i = 0; i < totalTabelas; i++) {
           const tabela = tabelasBackup[i];
-          setProgressoBackup({ atual: i + 1, total: totalTabelas, tabela: tabela.label });
+          setProgressoBackup({ atual: i + 1, total: totalTabelas, tabela: `${tabela.label}...` });
 
           try {
-            const dados = await base44.entities[tabela.entidade].list();
+            // EGRESS FIX: usa paginação para buscar TODOS os registros
+            const dados = await buscarTodosRegistros(tabela.entidade);
             backup.dados[tabela.nome] = dados || [];
           } catch (error) {
             backup.dados[tabela.nome] = [];
