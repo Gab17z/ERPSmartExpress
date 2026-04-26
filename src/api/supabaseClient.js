@@ -98,6 +98,25 @@ class Entity {
             query = query.in(key, value);
           } else if (value === null || value === "" || value === "global") {
             query = query.is(key, null);
+          } else if (
+            typeof value === 'object' &&
+            value !== null &&
+            !Array.isArray(value) &&
+            !(value instanceof Date)
+          ) {
+            // Suporte a operadores de range: { gte: '...', lte: '...', gt: '...', lt: '...' }
+            for (const [op, opVal] of Object.entries(value)) {
+              switch (op) {
+                case 'gte': query = query.gte(key, opVal); break;
+                case 'lte': query = query.lte(key, opVal); break;
+                case 'gt':  query = query.gt(key, opVal);  break;
+                case 'lt':  query = query.lt(key, opVal);  break;
+                case 'neq': query = query.neq(key, opVal); break;
+                case 'like':  query = query.like(key, opVal);  break;
+                case 'ilike': query = query.ilike(key, opVal); break;
+                default: query = query.eq(key, opVal);
+              }
+            }
           } else {
             query = query.eq(key, value);
           }
